@@ -3,18 +3,23 @@
 # Variaveis dentro do escopo do bloco de código é local
 
 
-x = 'incrivel'
+x = 'incrivel'  # Variael Global
+y = ' demais da conta' # Variael Global
+
+def myFunc():  # Criação da Função - Bloco de códigos
+    global w
+    w = 'Fantastico'
+    print("Python é " + x + y +". "+ w)
 
 
-def myFunc(): # Criação da Função - Bloco de códigos
-    print ("Python é " + x) 
+def myFunc1():
+    x = 'muito '  # Variael Escopo
+    y = 'bom demais da conta' # Variael de Escopo
+
+    print('Python é ' + x + y)
+
+myFunc()  # execução da função
+myFunc1()# execução da função
 
 
-myFunc() # execução da função
-
-
-print('Você é:' + x)
-
-
-
-
+print('Você é:' + x + y + ". " + w)
