@@ -16,3 +16,27 @@ print('----------------------------------------------')
 for x in "Gustavo": # o sistema irá varrer toda a variavel
     print(x + " - ")
 
+print('----------------------------------------------')
+
+x = len(c) # len realiza a contagem de caracteres
+print(x)
+
+print('----------------------------------------------')
+
+txt = " Seja bem vindo ao curso de Python."
+
+x = "vindo" in txt # in retorna se o valor vindo contem no texto da variavel x -> trabalha como estrutura de condição
+print(x)
+
+y = "CSharp" in txt
+print(y)
+
+print ("JavaScript" in txt)
+
+print('----------------------------------------------')
+
+if "vindo" in txt:
+    print("Sim, 'vindo' está presente")
+
+if "JavaScript" not in txt:
+    print("'JavaScript' não está presente")
