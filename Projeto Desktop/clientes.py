@@ -8,7 +8,8 @@ class Application():
         self.main = main
         self.tela()
         self.frame_tela()
-        self.widgets_frame_campos();
+        self.widgets_frame_campos()
+        self.lista_cliente()
         main.mainloop()
 
     def tela(self): # contrução da tela
@@ -143,8 +144,32 @@ class Application():
         self.lbl_lista_clientes = Label(self.main, text="Lista de Clientes Cadastrados", bg='#D3D3D3', font=('verdana', 25, 'bold'))
         self.lbl_lista_clientes.place(relx=0.01, rely=0.490, relwidth=0.510, relheight=0.05)
 
-    def lista_cliente(self):
-        self.listaCliente = ttk.Treeview(self.lista_cliente, height=3, columns=("col1", "col2", "col3", "col4"))
+    def lista_cliente(self):      
+    
+        #Criando o Grid e informando a quantidade de colunas        
+        self.listaCliente = ttk.Treeview(self.frame_lista, height=3, columns=("col1", "col2", "col3", "col4"))
+        
+        #Especificando o cabeçalho
+        self.listaCliente.heading("#0", text="")
+        self.listaCliente.heading("#1", text="Código")
+        self.listaCliente.heading("#2", text="Nome")
+        self.listaCliente.heading("#3", text="Telefone")
+        self.listaCliente.heading("#4", text="Cidade")
+
+        #Denfinindo o espaço das colunas
+        self.listaCliente.column("#0", width=1)
+        self.listaCliente.column("#1", width=1)
+        self.listaCliente.column("#2", width=350)
+        self.listaCliente.column("#3", width=90)
+        self.listaCliente.column("#4", width=250)
+
+        self.listaCliente.place(relx=0.01, rely=0.1, relwidth=0.97, relheight=0.85)
+
+        #barra de rolagem vertical
+        self.scroolista = Scrollbar(self.frame_lista, orient='vertical')
+        self.listaCliente.configure(yscroll=self.scroolista.set)
+        self.scroolista.place(relx=0.98, rely=0.1, relwidth=0.02, relheight=0.85)
+
 
 
 Application()
