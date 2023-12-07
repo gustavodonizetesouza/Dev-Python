@@ -1,9 +1,34 @@
 from tkinter import *
 from tkinter import ttk
+import mysql.connector
 
 main = Tk()
 
-class Application():
+class Funcoes():
+    def limpa_campos(self):
+        self.codigo_entry.delete(0, END)
+        self.nome_cliente_entry.delete(0, END)
+        self.data_nascimento_entry.delete(0, END)
+        self.cpf_entry.delete(0, END)
+        self.rg_entry.delete(0, END)
+        self.cep_entry.delete(0, END)
+        self.endereco_entry.delete(0, END)
+        self.numero_entry.delete(0, END)
+        self.bairro_entry.delete(0, END)
+        self.cidade_entry.delete(0, END)
+        self.estado_entry.delete(0, END) 
+
+    def concta_banco_dados(self):
+        self.conn = mysql.connector.connect(
+            host='mysql248.umbler.com:41890', user='wapsi', password='p2804019g*', db='hotdog', port=41890)
+        self.cursor = self.conn.cursor()
+        print("Conectando ao banco de dados")
+
+    def desconectar_banco_dados(self):
+        self.conn.close()
+        print("Desconectando o banco de dados")
+                                                    
+class Application(Funcoes):
     def __init__(self):
         self.main = main
         self.tela()
@@ -62,6 +87,9 @@ class Application():
 
         self.bt_salvar = Button(self.main, text="Salvar", bd=2, fg='blue', font=('verdana', 8, 'bold'))
         self.bt_salvar.place(relx=0.35, rely=0.41, relwidth=0.1, relheight=0.05)
+
+        self.bt_limpar = Button(self.main, text="Limpar", bd=2, fg='blue', font=('verdana', 8, 'bold'), command=self.limpa_campos)
+        self.bt_limpar.place(relx=0.46, rely=0.41, relwidth=0.1, relheight=0.05)
 
         #Labels e Entry
         ## ------Código Cliente
@@ -156,19 +184,20 @@ class Application():
         self.listaCliente.heading("#3", text="Telefone")
         self.listaCliente.heading("#4", text="Cidade")
 
-        #Denfinindo o espaço das colunas
+        #Definindo o espaço das colunas
         self.listaCliente.column("#0", width=1)
         self.listaCliente.column("#1", width=1)
         self.listaCliente.column("#2", width=350)
         self.listaCliente.column("#3", width=90)
         self.listaCliente.column("#4", width=250)
-
-        self.listaCliente.place(relx=0.01, rely=0.1, relwidth=0.97, relheight=0.85)
+        
+        #Definindo a posição do Treeview
+        self.listaCliente.place(relx=0.01, rely=0.01, relwidth=0.97, relheight=0.99)
 
         #barra de rolagem vertical
         self.scroolista = Scrollbar(self.frame_lista, orient='vertical')
         self.listaCliente.configure(yscroll=self.scroolista.set)
-        self.scroolista.place(relx=0.98, rely=0.1, relwidth=0.02, relheight=0.85)
+        self.scroolista.place(relx=0.98, rely=0.01, relwidth=0.02, relheight=0.99)
 
 
 
