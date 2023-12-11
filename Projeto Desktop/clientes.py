@@ -5,6 +5,7 @@ import mysql.connector
 main = Tk()
 
 class Funcoes():
+    #Limpa os dados contidos nos campos de cadastro
     def limpa_campos(self):
         self.codigo_entry.delete(0, END)
         self.nome_cliente_entry.delete(0, END)
@@ -18,15 +19,65 @@ class Funcoes():
         self.cidade_entry.delete(0, END)
         self.estado_entry.delete(0, END) 
 
+    #Conexao com o banco de dados
     def concta_banco_dados(self):
         self.conn = mysql.connector.connect(
-            host='mysql248.umbler.com:41890', user='wapsi', password='p2804019g*', db='hotdog', port=41890)
+            host='mysql248.umbler.com', user='wapsi', password='p28042019g*', db='gestao_essencial', port=41890)
         self.cursor = self.conn.cursor()
         print("Conectando ao banco de dados")
 
+    #Fecha a conexao com o banco de dados
     def desconectar_banco_dados(self):
         self.conn.close()
         print("Desconectando o banco de dados")
+
+    #Inseri cadastro clientes no banco
+    def create_cliente(self):
+        self.nome_cliente = self.nome_cliente_entry.get()
+        self.data_nascimento = self.data_nascimento_entry.get()
+        self.cpf = self.cpf_entry.get()
+        self.rg = self.rg_entry.get()
+        self.cep = self.cep_entry.get()
+        self.endereco = self.endereco_entry.get()
+        self.numero = self.numero_entry.get()
+        self.bairro = self.bairro_entry.get()
+        self.cidade = self.cidade_entry.get()
+        self.estado = self.estado_entry.get()
+
+        self.concta_banco_dados()
+        comando = f'INSERT INTO cliente (cliente, data_nascimento, cpf, rg, cep, endereco, numero, bairro, cidade, estado) VALUE ("{self.nome_cliente}","{self.data_nascimento}", "{self.cpf}", "{self.rg}","{self.cep}", "{self.endereco}", "{self.numero}", "{self.bairro}", "{self.cidade}", "{self.estado}")'
+        self.cursor.execute(comando)
+        self.conn.commit()
+        self.desconectar_banco_dados()
+        self.limpa_campos()
+        self.read_cliente()
+
+    #Lista clientes cadastrados no banco
+    def read_cliente(self):
+        self.listaCliente.delete(*self.listaCliente.get_children())
+        self.concta_banco_dados()
+
+        comando = f'SELECT cliente_id, cliente, cidade FROM cliente;'
+        self.cursor.execute(comando)
+        lista = self.cursor.fetchall()
+        print(lista)
+        for i in lista:
+            self.listaCliente.insert("", END, values=i)
+
+        self.desconectar_banco_dados()
+
+    def OnDoubleClik(self):
+        self.limpa_campos()
+        self.listaCliente.selection()
+
+        for n in self.listaCliente.selection():
+            col1, col2, col3 = self.listaCliente.item(n,'value')
+            self.codigo_entry.insert(END, col1)
+            self.nome_cliente_entry.insert(END, col2)
+            self.cidade_entry.insert(END, col3)
+
+    def
+
                                                     
 class Application(Funcoes):
     def __init__(self):
@@ -85,7 +136,7 @@ class Application(Funcoes):
         self.bt_excluir = Button(self.main, text="Excluir", bd=2, fg='blue', font=('verdana', 8, 'bold'))
         self.bt_excluir.place(relx=0.24, rely=0.41, relwidth=0.1, relheight=0.05)
 
-        self.bt_salvar = Button(self.main, text="Salvar", bd=2, fg='blue', font=('verdana', 8, 'bold'))
+        self.bt_salvar = Button(self.main, text="Salvar", bd=2, fg='blue', font=('verdana', 8, 'bold'), command=self.create_cliente)
         self.bt_salvar.place(relx=0.35, rely=0.41, relwidth=0.1, relheight=0.05)
 
         self.bt_limpar = Button(self.main, text="Limpar", bd=2, fg='blue', font=('verdana', 8, 'bold'), command=self.limpa_campos)
@@ -175,21 +226,21 @@ class Application(Funcoes):
     def lista_cliente(self):      
     
         #Criando o Grid e informando a quantidade de colunas        
-        self.listaCliente = ttk.Treeview(self.frame_lista, height=3, columns=("col1", "col2", "col3", "col4"))
+        self.listaCliente = ttk.Treeview(self.frame_lista, height=3, columns=("col1", "col2", "col3"))
         
         #Especificando o cabeçalho
         self.listaCliente.heading("#0", text="")
         self.listaCliente.heading("#1", text="Código")
         self.listaCliente.heading("#2", text="Nome")
-        self.listaCliente.heading("#3", text="Telefone")
-        self.listaCliente.heading("#4", text="Cidade")
+        self.listaCliente.heading("#3", text="Cidade")
+        
 
         #Definindo o espaço das colunas
         self.listaCliente.column("#0", width=1)
         self.listaCliente.column("#1", width=1)
         self.listaCliente.column("#2", width=350)
         self.listaCliente.column("#3", width=90)
-        self.listaCliente.column("#4", width=250)
+        
         
         #Definindo a posição do Treeview
         self.listaCliente.place(relx=0.01, rely=0.01, relwidth=0.97, relheight=0.99)
