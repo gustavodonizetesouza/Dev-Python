@@ -76,8 +76,6 @@ class Funcoes():
             self.nome_cliente_entry.insert(END, col2)
             self.cidade_entry.insert(END, col3)
 
-    def
-
                                                     
 class Application(Funcoes):
     def __init__(self):
