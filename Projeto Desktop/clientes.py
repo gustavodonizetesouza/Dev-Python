@@ -31,8 +31,9 @@ class Funcoes():
         self.conn.close()
         print("Desconectando o banco de dados")
 
-    #Inseri cadastro clientes no banco
-    def create_cliente(self):
+    #variaveis cadastro cliente
+    def variaveis(self):
+        self.codigo = self.codigo_entry.get()
         self.nome_cliente = self.nome_cliente_entry.get()
         self.data_nascimento = self.data_nascimento_entry.get()
         self.cpf = self.cpf_entry.get()
@@ -43,7 +44,10 @@ class Funcoes():
         self.bairro = self.bairro_entry.get()
         self.cidade = self.cidade_entry.get()
         self.estado = self.estado_entry.get()
-
+    
+    #Inseri cadastro clientes no banco
+    def create_cliente(self):
+        self.variaveis()
         self.concta_banco_dados()
         comando = f'INSERT INTO cliente (cliente, data_nascimento, cpf, rg, cep, endereco, numero, bairro, cidade, estado) VALUE ("{self.nome_cliente}","{self.data_nascimento}", "{self.cpf}", "{self.rg}","{self.cep}", "{self.endereco}", "{self.numero}", "{self.bairro}", "{self.cidade}", "{self.estado}")'
         self.cursor.execute(comando)
@@ -65,8 +69,9 @@ class Funcoes():
             self.listaCliente.insert("", END, values=i)
 
         self.desconectar_banco_dados()
-
-    def OnDoubleClik(self):
+    
+    #Função para duplo click na linha e preencher os campos
+    def OnDoubleClik(self, event):
         self.limpa_campos()
         self.listaCliente.selection()
 
@@ -75,8 +80,18 @@ class Funcoes():
             self.codigo_entry.insert(END, col1)
             self.nome_cliente_entry.insert(END, col2)
             self.cidade_entry.insert(END, col3)
-
-    def
+    
+    #deletar clientes
+    def delete_cliente(self):
+        self.variaveis()
+        self.concta_banco_dados()
+        comando = f'DELETE FROM cliente WHERE cliente_id = "{self.codigo}"'
+        self.cursor.execute(comando)
+        self.conn.commit()
+        self.desconectar_banco_dados()
+        self.limpa_campos()
+        self.read_cliente()
+        
 
                                                     
 class Application(Funcoes):
@@ -127,13 +142,13 @@ class Application(Funcoes):
     
     def widgets_frame_campos(self):
 
-        self.bt_novo = Button(self.main, text="Novo", bd=2, fg='blue', font=('verdana', 8, 'bold'))
+        self.bt_novo = Button(self.main, text="Novo", bd=2, fg='blue', font=('verdana', 8, 'bold'), command=self.read_cliente)
         self.bt_novo.place(relx=0.02, rely=0.41, relwidth=0.1, relheight=0.05)
 
         self.bt_alterar = Button(self.main, text="Alterar", bd=2, fg='blue', font=('verdana', 8, 'bold'))
         self.bt_alterar.place(relx=0.13, rely=0.41, relwidth=0.1, relheight=0.05)
 
-        self.bt_excluir = Button(self.main, text="Excluir", bd=2, fg='blue', font=('verdana', 8, 'bold'))
+        self.bt_excluir = Button(self.main, text="Excluir", bd=2, fg='blue', font=('verdana', 8, 'bold'), command=self.delete_cliente)
         self.bt_excluir.place(relx=0.24, rely=0.41, relwidth=0.1, relheight=0.05)
 
         self.bt_salvar = Button(self.main, text="Salvar", bd=2, fg='blue', font=('verdana', 8, 'bold'), command=self.create_cliente)
@@ -249,6 +264,7 @@ class Application(Funcoes):
         self.scroolista = Scrollbar(self.frame_lista, orient='vertical')
         self.listaCliente.configure(yscroll=self.scroolista.set)
         self.scroolista.place(relx=0.98, rely=0.01, relwidth=0.02, relheight=0.99)
+        self.listaCliente.bind("<Double-1>", self.OnDoubleClik)
 
 
 
