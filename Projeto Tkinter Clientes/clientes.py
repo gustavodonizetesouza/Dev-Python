@@ -91,7 +91,18 @@ class Funcoes():
         self.desconectar_banco_dados()
         self.limpa_campos()
         self.read_cliente()
-        
+    
+    #atualizar dados do cliente
+    def update_cliente(self):
+        self.variaveis()
+        self.concta_banco_dados()
+        comando = f'UPDATE cliente SET cliente = "{self.nome_cliente}", data_nascimento = "{self.data_nascimento}", cpf = "{self.cpf}", rg = "{self.rg}", cep = "{self.cep}", endereco = "{self.endereco}", numero = "{self.numero}", bairro = "{self.bairro}", cidade =  "{self.cidade}", estado = "{self.estado}" WHERE cliente_id = "{self.codigo}"'
+        self.cursor.execute(comando)
+        self.conn.commit()
+        self.desconectar_banco_dados()
+        self.limpa_campos()
+        self.read_cliente()
+
 
                                                     
 class Application(Funcoes):
@@ -101,6 +112,7 @@ class Application(Funcoes):
         self.frame_tela()
         self.widgets_frame_campos()
         self.lista_cliente()
+        self.menus()
         main.mainloop()
 
     def tela(self): # contrução da tela
@@ -142,20 +154,23 @@ class Application(Funcoes):
     
     def widgets_frame_campos(self):
 
-        self.bt_novo = Button(self.main, text="Novo", bd=2, fg='blue', font=('verdana', 8, 'bold'), command=self.read_cliente)
+        self.bt_novo = Button(self.main, text="Novo", bd=2, fg='blue', font=('verdana', 8, 'bold'), command=self.create_cliente)
         self.bt_novo.place(relx=0.02, rely=0.41, relwidth=0.1, relheight=0.05)
 
-        self.bt_alterar = Button(self.main, text="Alterar", bd=2, fg='blue', font=('verdana', 8, 'bold'))
+        self.bt_alterar = Button(self.main, text="Alterar", bd=2, fg='blue', font=('verdana', 8, 'bold'), command=self.update_cliente)
         self.bt_alterar.place(relx=0.13, rely=0.41, relwidth=0.1, relheight=0.05)
 
         self.bt_excluir = Button(self.main, text="Excluir", bd=2, fg='blue', font=('verdana', 8, 'bold'), command=self.delete_cliente)
         self.bt_excluir.place(relx=0.24, rely=0.41, relwidth=0.1, relheight=0.05)
 
-        self.bt_salvar = Button(self.main, text="Salvar", bd=2, fg='blue', font=('verdana', 8, 'bold'), command=self.create_cliente)
+        self.bt_salvar = Button(self.main, text="Salvar", bd=2, fg='blue', font=('verdana', 8, 'bold'))
         self.bt_salvar.place(relx=0.35, rely=0.41, relwidth=0.1, relheight=0.05)
 
         self.bt_limpar = Button(self.main, text="Limpar", bd=2, fg='blue', font=('verdana', 8, 'bold'), command=self.limpa_campos)
         self.bt_limpar.place(relx=0.46, rely=0.41, relwidth=0.1, relheight=0.05)
+
+        self.bt_listar_cliente = Button(self.main, text='Listar Clientes',  bd=2, fg='blue', font=('verdana', 8, 'bold'), command=self.read_cliente)
+        self.bt_listar_cliente.place(relx=0.46, rely=0.49, relwidth=0.1, relheight=0.05)
 
         #Labels e Entry
         ## ------Código Cliente
@@ -235,11 +250,17 @@ class Application(Funcoes):
         self.estado_entry = Entry(self.frame_campos)
         self.estado_entry.place(relx=0.90, rely=0.31, relwidth=0.10)
 
-        self.lbl_lista_clientes = Label(self.main, text="Lista de Clientes Cadastrados", bg='#D3D3D3', font=('verdana', 25, 'bold'))
-        self.lbl_lista_clientes.place(relx=0.01, rely=0.490, relwidth=0.510, relheight=0.05)
+        self.lbl_lista_clientes = Label(self.main, text="Lista de Clientes Cadastrados", bg='#D3D3D3', font=('verdana', 15, 'bold'))
+        self.lbl_lista_clientes.place(relx=0.58, rely=0.490, relwidth=0.510, relheight=0.05)
 
-    def lista_cliente(self):      
-    
+        # ------Pesquisa Cliente
+        self.lbl_pesquisa_cliente = Label(self.main, text="Nome Cliente", bg='#D3D3D3')
+        self.lbl_pesquisa_cliente.place(relx=0.01, rely=0.480)
+
+        self.pesquisa_cliente_entry = Entry(self.main)
+        self.pesquisa_cliente_entry.place(relx=0.01, rely=0.508, relwidth=0.44)
+
+    def lista_cliente(self):  
         #Criando o Grid e informando a quantidade de colunas        
         self.listaCliente = ttk.Treeview(self.frame_lista, height=3, columns=("col1", "col2", "col3"))
         
@@ -247,15 +268,13 @@ class Application(Funcoes):
         self.listaCliente.heading("#0", text="")
         self.listaCliente.heading("#1", text="Código")
         self.listaCliente.heading("#2", text="Nome")
-        self.listaCliente.heading("#3", text="Cidade")
-        
+        self.listaCliente.heading("#3", text="Cidade")        
 
         #Definindo o espaço das colunas
-        self.listaCliente.column("#0", width=1)
-        self.listaCliente.column("#1", width=1)
-        self.listaCliente.column("#2", width=350)
-        self.listaCliente.column("#3", width=90)
-        
+        self.listaCliente.column("#0", width=1, )
+        self.listaCliente.column("#1", width=10)
+        self.listaCliente.column("#2", width=450)
+        self.listaCliente.column("#3", width=350)        
         
         #Definindo a posição do Treeview
         self.listaCliente.place(relx=0.01, rely=0.01, relwidth=0.97, relheight=0.99)
@@ -265,7 +284,24 @@ class Application(Funcoes):
         self.listaCliente.configure(yscroll=self.scroolista.set)
         self.scroolista.place(relx=0.98, rely=0.01, relwidth=0.02, relheight=0.99)
         self.listaCliente.bind("<Double-1>", self.OnDoubleClik)
+    
+    def menus(self):
+        menubar = Menu(self.main)
+        self.main.config(menu=menubar)
+        filemenu = Menu(menubar)
+        filemenu2 = Menu(menubar)
+        filemenu3 = Menu(menubar)
 
+        def Quit(): self.main.destroy() 
 
+        menubar.add_cascade(label="Opções", menu= filemenu)
+        menubar.add_cascade(label="Sobre", menu= filemenu2)
+        menubar.add_cascade(label="Finalizar", menu=filemenu3)
+       
+        filemenu.add_command(label= "Listar Cliiente", command=self.read_cliente)
+        filemenu2.add_command(label= "Sobre App")
+        filemenu3.add_command(label= "Encerrar App", command=Quit)
+
+    
 
 Application()
