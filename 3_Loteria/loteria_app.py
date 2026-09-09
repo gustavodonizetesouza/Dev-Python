@@ -1,16 +1,22 @@
 # ============================================================
-#  LOTERIA APP - Python + Tkinter + SQLite (Dark Modern v6)
-#  Cadastro, consulta, estatísticas, ATRASO e ALERTA
+#  LOTERIA APP - Python + CustomTkinter + SQLite (v8.1)
+#  Cadastro, consulta, estatísticas, atraso, alerta e GERADOR
 #  Banco: arquivo loteria.db (criado automaticamente)
 # ============================================================
 
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import messagebox, filedialog
+import customtkinter as ctk
 import sqlite3
 import csv
 import os
+import random
 from collections import Counter
 from datetime import datetime
+
+# ---------- Configuração global do CustomTkinter ----------
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("blue")
 
 DB_PATH = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), "loteria.db")
@@ -20,34 +26,75 @@ LOTERIAS_PADRAO = [
     ("Mega-Sena", 6, 1, 60),
 ]
 
+# Estratégias do Gerador (rótulo -> chave)
+ESTRATEGIAS = {
+    "Equilibrado (padrão)": "equilibrado",
+    "Ponderado por frequência": "ponderado",
+    "Puro aleatório": "puro",
+}
+
 COLUNAS_D = ", ".join(f"D{i} INTEGER" for i in range(1, 21))
 
-# ---------- Paleta de cores (dark mode) ----------
+# ---------- Paleta de cores ----------
 CORES = {
-    "bg": "#1e1e2e",
-    "card": "#2a2a3c",
-    "card2": "#33334a",
-    "borda": "#3f3f5a",
-    "texto": "#e4e4ef",
-    "texto2": "#a0a0b8",
+    "bg": "#14141f",
+    "card": "#1f1f2e",
+    "card2": "#2a2a3d",
+    "borda": "#33334a",
+    "texto": "#e8e8f2",
+    "texto2": "#9a9ab0",
     "destaque": "#6c5ce7",
     "destaque2": "#5a4bd1",
     "verde": "#00b894",
     "verde2": "#00997c",
-    "vermelho": "#d63031",
-    "selecao": "#4a4a6a",
+    "vermelho": "#e0534f",
     "quente": "#8a4a38",
     "frio": "#3d4f73",
-    "atraso_top": "#5a2020",
+    "melhor": "#1f3d2b",
+    "top_atraso": "#5a2020",
+    "header": "#26263a",
 }
 
 
 def centralizar_janela(janela, largura, altura):
-    """Posiciona a janela no centro da tela."""
     janela.update_idletasks()
     x = (janela.winfo_screenwidth() - largura) // 2
     y = (janela.winfo_screenheight() - altura) // 2
     janela.geometry(f"{largura}x{altura}+{x}+{y}")
+
+
+class TabelaCTk(ctk.CTkScrollableFrame):
+    """Tabela moderna: cabeçalho fixo + linhas roláveis, com cores por linha."""
+
+    def __init__(self, master, colunas, larguras, altura_linha=32, alinhamentos=None):
+        super().__init__(master, fg_color="transparent")
+        self.colunas = colunas
+        self.larguras = larguras
+        self.alinhamentos = alinhamentos or ["center"] * len(colunas)
+
+        cab = ctk.CTkFrame(self, fg_color=CORES["header"], corner_radius=8)
+        cab.pack(fill="x", pady=(0, 4))
+        for col, w, al in zip(colunas, larguras, self.alinhamentos):
+            ctk.CTkLabel(cab, text=col, width=w, anchor=al,
+                         font=ctk.CTkFont(size=12, weight="bold"),
+                         text_color=CORES["texto"]).pack(side="left", padx=2, pady=4)
+
+        self.linhas_box = ctk.CTkFrame(self, fg_color="transparent")
+        self.linhas_box.pack(fill="x")
+
+    def limpar(self):
+        for w in self.linhas_box.winfo_children():
+            w.destroy()
+
+    def adicionar(self, valores, fg=None, text_color=None):
+        linha = ctk.CTkFrame(self.linhas_box,
+                             fg_color=fg or CORES["card"],
+                             corner_radius=6)
+        linha.pack(fill="x", pady=1)
+        for val, w, al in zip(valores, self.larguras, self.alinhamentos):
+            ctk.CTkLabel(linha, text=str(val), width=w, anchor=al,
+                         font=ctk.CTkFont(size=12),
+                         text_color=text_color or CORES["texto"]).pack(side="left", padx=2, pady=2)
 
 
 class Database:
@@ -133,18 +180,15 @@ class Database:
 
     def importar_csv(self, caminho, loteria_id, qtd):
         inseridos, erros = 0, []
-        # 1) Detecta a codificação do arquivo
         with open(caminho, "rb") as f:
             raw = f.read()
         if raw.startswith(b"\xff\xfe") or raw.startswith(b"\xfe\xff"):
-            # salvo como Unicode (Excel)
             conteudo = raw.decode("utf-16")
         else:
             try:
-                conteudo = raw.decode("utf-8-sig")   # UTF-8 (com ou sem BOM)
+                conteudo = raw.decode("utf-8-sig")
             except UnicodeDecodeError:
-                conteudo = raw.decode("latin-1")     # fallback Latin-1
-        # 2) Detecta o separador: ; , ou TAB (arquivos salvos pelo Excel)
+                conteudo = raw.decode("latin-1")
         primeira = conteudo.splitlines()[0] if conteudo.splitlines() else ""
         n_pv, n_virgula, n_tab = primeira.count(
             ";"), primeira.count(","), primeira.count("\t")
@@ -159,7 +203,6 @@ class Database:
         linhas = list(csv.reader(conteudo.splitlines(), delimiter=sep))
         if not linhas:
             return 0, ["Arquivo vazio."]
-        # 3) Normaliza o cabeçalho (remove BOM, aspas e espaços)
 
         def limpar(nome):
             return nome.strip().strip('"').strip("'").lstrip("\ufeff").lower()
@@ -175,7 +218,6 @@ class Database:
         i_dat = col("data", "data_sorteio", "data_sorteada", "dt", "date")
         i_d1 = col("d1", "dezena1", "bola1", "bola_1", "b1", "dezena_1")
         if i_conc is None or i_dat is None or i_d1 is None:
-            # 4) Fallback posicional: col0=concurso, col1=data, col2..=dezenas
             if len(linhas[0]) >= qtd + 2:
                 i_conc, i_dat, i_d1 = 0, 1, 2
             else:
@@ -249,16 +291,9 @@ class Database:
             "total": total,
             "frequencia": frequencia,
             "classificacao": classificacao,
-            "corte_frio": corte_frio,
-            "corte_quente": corte_quente,
         }
 
     def atraso_dezenas(self, loteria_id, min_num, max_num):
-        """Calcula há quantos concursos cada dezena não aparece.
-
-        Atraso = último concurso registrado - último concurso em que a dezena saiu.
-        Dezena que nunca saiu: atraso = total de concursos (marcada como 'nunca').
-        """
         rows = self._conn.execute(
             "SELECT NumeroConcurso, DataSorteio, DezenasKey FROM Concursos "
             "WHERE LoteriaId = ? ORDER BY NumeroConcurso ASC",
@@ -289,7 +324,6 @@ class Database:
                 "ultima_data": ultima_data, "linhas": linhas}
 
     def similaridade(self, loteria_id, dezenas):
-        """Compara a aposta com todo o histórico e retorna o Top 10 por interseção."""
         aposta = set(int(d) for d in dezenas)
         rows = self._conn.execute(
             "SELECT NumeroConcurso, DataSorteio, DezenasKey FROM Concursos WHERE LoteriaId = ?",
@@ -309,6 +343,178 @@ class Database:
         resultados.sort(key=lambda x: (-x["acertos"], -x["concurso"]))
         return resultados[:10]
 
+    def gerar_jogos(self, loteria_id, quantidade, estrategia):
+        """Gera jogos — análise descritiva, NÃO previsão.
+
+        'equilibrado': mistura quente/morno/frio + tenta soma central e par/ímpar.
+        'ponderado'  : sorteio com peso = frequência histórica.
+        'puro'       : quick pick 100% aleatório (controle).
+        """
+        lot = self._conn.execute(
+            "SELECT QtdDezenas, MinNumero, MaxNumero FROM Loterias WHERE Id = ?",
+            (loteria_id,),
+        ).fetchone()
+        if not lot:
+            return []
+        qtd = lot["QtdDezenas"]
+        mn, mx = lot["MinNumero"], lot["MaxNumero"]
+        todas = list(range(mn, mx + 1))
+
+        rows = self._conn.execute(
+            "SELECT DezenasKey FROM Concursos WHERE LoteriaId = ?",
+            (loteria_id,),
+        ).fetchall()
+        sorteadas = {r["DezenasKey"] for r in rows}
+
+        freq = {d: {"vezes": 0, "classe": "morno"} for d in todas}
+        quentes, mornas, frias = [], [], []
+        if rows:
+            contador = Counter()
+            for r in rows:
+                for d in r["DezenasKey"].split("-"):
+                    contador[int(d)] += 1
+            pares = sorted(contador.items(), key=lambda x: (-x[1], x[0]))
+            n = len(pares)
+            corte_frio = max(1, n // 4)
+            corte_quente = n - max(1, n // 4)
+            for i, (dezena, count) in enumerate(pares):
+                if i >= corte_quente:
+                    classe = "quente"
+                elif i < corte_frio:
+                    classe = "frio"
+                else:
+                    classe = "morno"
+                freq[dezena] = {"vezes": count, "classe": classe}
+            quentes = [d for d, v in freq.items() if v["classe"] == "quente"]
+            mornas = [d for d, v in freq.items() if v["classe"] == "morno"]
+            frias = [d for d, v in freq.items() if v["classe"] == "frio"]
+
+        alvo_soma = (mn + mx) / 2 * qtd
+        alvo_par = qtd // 2
+
+        def sorteio_ponderado(pool, pesos, k):
+            pool, pesos = pool[:], pesos[:]
+            escolhidos = []
+            for _ in range(k):
+                if not pool:
+                    break
+                total = sum(pesos)
+                alvo = random.uniform(0, total)
+                acum = 0
+                for i in range(len(pool)):
+                    acum += pesos[i]
+                    if acum >= alvo:
+                        escolhidos.append(pool[i])
+                        pool.pop(i)
+                        pesos.pop(i)
+                        break
+            return escolhidos
+
+        def montar_jogo():
+            """Monta um jogo seguindo a estratégia (sem filtros rígidos)."""
+            if estrategia == "puro" or not rows:
+                return sorted(random.sample(todas, qtd))
+            if estrategia == "ponderado":
+                pesos = [max(freq[d]["vezes"], 1) for d in todas]
+                return sorted(sorteio_ponderado(todas, pesos, qtd))
+            n_q = min(max(1, round(qtd * 0.4)), len(quentes)) if quentes else 0
+            n_f = min(max(1, round(qtd * 0.3)), len(frias)) if frias else 0
+            if n_q + n_f > qtd:
+                n_q = max(1, qtd // 3)
+                n_f = max(1, qtd // 4)
+            n_m = max(0, qtd - n_q - n_f)
+            jogo = []
+            if quentes and n_q:
+                jogo += random.sample(quentes, n_q)
+            if frias and n_f:
+                jogo += random.sample(frias, n_f)
+            usadas = set(jogo)
+            pool = [d for d in (mornas + quentes + frias) if d not in usadas]
+            random.shuffle(pool)
+            jogo = jogo + pool[:n_m]
+            if len(jogo) < qtd:
+                faltam = [d for d in todas if d not in set(jogo)]
+                random.shuffle(faltam)
+                jogo = jogo + faltam[:qtd - len(jogo)]
+            return jogo
+
+        def corrigir_perfil(jogo, tentativas=150):
+            """Ajusta soma e paridade SEM descartar o jogo."""
+            jogo = list(jogo)
+            meio = (mn + mx) / 2
+            for _ in range(tentativas):
+                soma = sum(jogo)
+                pares_n = sum(1 for x in jogo if x % 2 == 0)
+                if abs(soma - alvo_soma) <= 0.08 * alvo_soma and \
+                   abs(pares_n - alvo_par) <= 1:
+                    return sorted(jogo)
+                usados = set(jogo)
+                candidatos = [x for x in todas if x not in usados]
+                if not candidatos:
+                    return sorted(jogo)
+                if abs(pares_n - alvo_par) > 1:
+                    if pares_n > alvo_par:
+                        idxs = [i for i, x in enumerate(jogo) if x % 2 == 0]
+                        cand = [x for x in candidatos if x % 2 == 1]
+                    else:
+                        idxs = [i for i, x in enumerate(jogo) if x % 2 == 1]
+                        cand = [x for x in candidatos if x % 2 == 0]
+                else:
+                    if sum(jogo) > alvo_soma:
+                        idxs = [i for i, x in enumerate(jogo) if x > meio]
+                        cand = [x for x in candidatos if x < meio]
+                    else:
+                        idxs = [i for i, x in enumerate(jogo) if x < meio]
+                        cand = [x for x in candidatos if x > meio]
+                if not idxs or not cand:
+                    return sorted(jogo)
+                jogo[random.choice(idxs)] = random.choice(cand)
+            return sorted(jogo)
+
+        jogos = []
+        chaves = set()
+        tentativas = 0
+        while len(jogos) < quantidade and tentativas < 800:
+            tentativas += 1
+            bruto = montar_jogo()
+            if len(set(bruto)) != qtd:
+                continue
+            if estrategia == "puro":
+                jogo = sorted(bruto)
+            else:
+                jogo = corrigir_perfil(bruto)
+            if len(set(jogo)) != qtd:
+                jogo = bruto
+            key = self.normalizar(jogo)
+            if key in chaves:
+                continue
+            if key in sorteadas and len(sorteadas) < 100000:
+                continue
+            chaves.add(key)
+            q, m, f = 0, 0, 0
+            for d in jogo:
+                classe = freq[d]["classe"]
+                if classe == "quente":
+                    q += 1
+                elif classe == "frio":
+                    f += 1
+                else:
+                    m += 1
+            jogos.append({"jogo": jogo, "key": key, "quentes": q,
+                          "mornas": m, "frias": f})
+
+        while len(jogos) < quantidade:
+            jogo = sorted(random.sample(todas, qtd))
+            key = self.normalizar(jogo)
+            if key in chaves:
+                continue
+            chaves.add(key)
+            q = sum(1 for d in jogo if freq[d]["classe"] == "quente")
+            f = sum(1 for d in jogo if freq[d]["classe"] == "frio")
+            jogos.append({"jogo": jogo, "key": key, "quentes": q,
+                          "mornas": qtd - q - f, "frias": f})
+        return jogos[:quantidade]
+
     def fechar(self):
         try:
             self._conn.close()
@@ -320,10 +526,8 @@ class App:
     def __init__(self, root):
         self.root = root
         root.title("Loteria Manager")
-        root.configure(bg=CORES["bg"])
         root.protocol("WM_DELETE_WINDOW", self._sair)
 
-        self._estilo()
         self.db = Database()
         self.loterias = self.db.listar_loterias()
         self.lot = self.loterias[0]
@@ -333,84 +537,40 @@ class App:
         self._atualizar_estatisticas()
         self._atualizar_atraso()
 
-        centralizar_janela(root, 960, 680)
-        root.minsize(840, 580)
+        centralizar_janela(root, 1020, 720)
+        root.minsize(880, 600)
 
-    def _estilo(self):
-        st = ttk.Style()
-        st.theme_use("clam")
-        st.configure(".", background=CORES["bg"], foreground=CORES["texto"],
-                     fieldbackground=CORES["card2"], bordercolor=CORES["borda"])
-        st.configure("TFrame", background=CORES["bg"])
-        st.configure("Card.TFrame", background=CORES["card"])
-        st.configure("TLabel", background=CORES["bg"], foreground=CORES["texto"], font=(
-            "Segoe UI", 10))
-        st.configure("Card.TLabel", background=CORES["card"], foreground=CORES["texto"], font=(
-            "Segoe UI", 10))
-        st.configure("Title.TLabel", background=CORES["bg"], foreground=CORES["texto"],
-                     font=("Segoe UI", 16, "bold"))
-        st.configure("Sub.TLabel", background=CORES["bg"], foreground=CORES["texto2"],
-                     font=("Segoe UI", 9))
-        st.configure("TEntry", fieldbackground=CORES["card2"], foreground=CORES["texto"],
-                     insertcolor=CORES["texto"], bordercolor=CORES["borda"], padding=6)
-        st.configure("TCombobox", fieldbackground=CORES["card2"], foreground=CORES["texto"],
-                     arrowcolor=CORES["texto"], bordercolor=CORES["borda"])
-        st.map("TCombobox", fieldbackground=[("readonly", CORES["card2"])],
-               foreground=[("readonly", CORES["texto"])])
-        st.configure("TNotebook", background=CORES["bg"], borderwidth=0)
-        st.configure("TNotebook.Tab", background=CORES["card"], foreground=CORES["texto2"],
-                     padding=(22, 9), font=("Segoe UI", 10, "bold"), borderwidth=0)
-        st.map("TNotebook.Tab",
-               background=[("selected", CORES["destaque"]),
-                           ("active", CORES["card2"])],
-               foreground=[("selected", "#ffffff"), ("active", CORES["texto"])])
-        st.configure("Treeview", background=CORES["card"], fieldbackground=CORES["card"],
-                     foreground=CORES["texto"], bordercolor=CORES["borda"], rowheight=28)
-        st.configure("Treeview.Heading", background=CORES["card2"], foreground=CORES["texto"],
-                     font=("Segoe UI", 10, "bold"), bordercolor=CORES["borda"])
-        st.map("Treeview", background=[("selected", CORES["selecao"])],
-               foreground=[("selected", "#ffffff")])
-        st.configure("TButton", background=CORES["destaque"], foreground="#ffffff",
-                     font=("Segoe UI", 10, "bold"), padding=(16, 8), borderwidth=0)
-        st.map("TButton", background=[("active", CORES["destaque2"]),
-                                      ("pressed", CORES["destaque2"])])
-        st.configure("Destaque.TButton", background=CORES["verde"])
-        st.map("Destaque.TButton", background=[("active", CORES["verde2"]),
-                                               ("pressed", CORES["verde2"])])
-
+    # ---------- Interface ----------
     def _montar_ui(self):
-        cab = ttk.Frame(self.root, padding=(20, 14, 20, 6))
-        cab.pack(fill="x")
-        ttk.Label(cab, text="🎯 Loteria Manager",
-                  style="Title.TLabel").pack(side="left")
-        ttk.Label(cab, text="Registre, consulte e analise sorteios", style="Sub.TLabel").pack(
-            side="left", padx=(12, 0), pady=(6, 0))
+        cab = ctk.CTkFrame(self.root, fg_color="transparent")
+        cab.pack(fill="x", padx=24, pady=(18, 4))
+        ctk.CTkLabel(cab, text="🎯 Loteria Manager",
+                     font=ctk.CTkFont(size=22, weight="bold")).pack(side="left")
+        ctk.CTkLabel(cab, text="Registre, consulte, analise e gere jogos",
+                     font=ctk.CTkFont(size=12), text_color=CORES["texto2"]).pack(
+            side="left", padx=(14, 0), pady=(6, 0))
 
-        barra = ttk.Frame(self.root, padding=(20, 4, 20, 8))
-        barra.pack(fill="x")
-        ttk.Label(barra, text="Loteria:", style="TLabel").pack(side="left")
-        self.cmb = ttk.Combobox(barra, values=[l["Nome"] for l in self.loterias],
-                                state="readonly", width=18)
-        self.cmb.current(0)
-        self.cmb.pack(side="left", padx=8)
-        self.cmb.bind("<<ComboboxSelected>>", self._trocar_loteria)
-        ttk.Button(barra, text="⬆ Importar CSV",
-                   command=self._importar_csv).pack(side="right")
+        barra = ctk.CTkFrame(self.root, fg_color="transparent")
+        barra.pack(fill="x", padx=24, pady=(6, 10))
+        ctk.CTkLabel(barra, text="Loteria:",
+                     font=ctk.CTkFont(size=13)).pack(side="left")
+        self.cmb = ctk.CTkComboBox(barra, values=[l["Nome"] for l in self.loterias],
+                                   width=180, state="readonly",
+                                   command=self._trocar_loteria)
+        self.cmb.set(self.lot["Nome"])
+        self.cmb.pack(side="left", padx=10)
+        ctk.CTkButton(barra, text="⬆  Importar CSV",
+                      command=self._importar_csv, width=150,
+                      fg_color=CORES["destaque"], hover_color=CORES["destaque2"],
+                      corner_radius=10).pack(side="right")
 
-        self.ab = ttk.Notebook(self.root)
-        self.ab.pack(fill="both", expand=True, padx=20, pady=(0, 16))
-        self.tab_cadastro = ttk.Frame(self.ab)
-        self.tab_consulta = ttk.Frame(self.ab)
-        self.tab_historico = ttk.Frame(self.ab)
-        self.tab_estatisticas = ttk.Frame(self.ab)
-        self.tab_atraso = ttk.Frame(self.ab)
-        self.tab_alerta = ttk.Frame(self.ab)
-        self.ab.add(self.tab_cadastro, text="  Cadastrar Sorteio  ")
-        self.ab.add(self.tab_consulta, text="  Consultar Sequência  ")
-        self.ab.add(self.tab_historico, text="  Histórico  ")
-        self.ab.add(self.tab_estatisticas, text="  Estatísticas  ")
-        self.ab.add(self.tab_atraso, text="  Atraso  ")
-        self.ab.add(self.tab_alerta, text="  Alerta  ")
+        self.ab = ctk.CTkTabview(self.root, corner_radius=12,
+                                 segmented_button_selected_color=CORES["destaque"],
+                                 segmented_button_selected_hover_color=CORES["destaque2"])
+        self.ab.pack(fill="both", expand=True, padx=20, pady=(0, 18))
+        for nome in ("Cadastrar Sorteio", "Consultar Sequência", "Histórico",
+                     "Estatísticas", "Atraso", "Alerta", "Gerador"):
+            self.ab.add(nome)
 
         self._montar_cadastro()
         self._montar_consulta()
@@ -418,8 +578,10 @@ class App:
         self._montar_estatisticas()
         self._montar_atraso()
         self._montar_alerta()
+        self._montar_gerador()
 
     def _grade(self, container):
+        """Cria/recria os campos de dezenas (uma linha até 10; senão 5 por linha)."""
         for w in container.winfo_children():
             w.destroy()
         entradas, linha = [], None
@@ -427,181 +589,193 @@ class App:
         por_linha = qtd if qtd <= 10 else 5
         for i in range(qtd):
             if i % por_linha == 0:
-                linha = ttk.Frame(container)
-                linha.pack(fill="x", pady=4)
-            ent = ttk.Entry(linha, width=5, justify="center",
-                            font=("Segoe UI", 12, "bold"))
+                linha = ctk.CTkFrame(container, fg_color="transparent",
+                                     corner_radius=0)
+                linha.pack(fill="x", pady=3)
+            ent = ctk.CTkEntry(linha, width=64, height=38, justify="center",
+                               font=ctk.CTkFont(size=15, weight="bold"),
+                               corner_radius=8)
             ent.pack(side="left", padx=4)
             entradas.append(ent)
         return entradas
 
     def _montar_cadastro(self):
-        box = ttk.Frame(self.tab_cadastro, style="Card.TFrame", padding=20)
-        box.pack(fill="x", padx=16, pady=16)
-        ttk.Label(box, text="Dados do Sorteio", style="Card.TLabel",
-                  font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 12))
-        l1 = ttk.Frame(box, style="Card.TFrame")
-        l1.pack(fill="x", pady=4)
-        ttk.Label(l1, text="Nº do Concurso:",
-                  style="Card.TLabel").pack(side="left")
-        self.ent_num = ttk.Entry(l1, width=10)
+        tab = self.ab.tab("Cadastrar Sorteio")
+        box = ctk.CTkFrame(tab, fg_color=CORES["card"], corner_radius=14)
+        box.pack(fill="x", padx=18, pady=18)
+
+        ctk.CTkLabel(box, text="Dados do Sorteio",
+                     font=ctk.CTkFont(size=15, weight="bold")).pack(anchor="w", padx=20, pady=(16, 4))
+
+        l1 = ctk.CTkFrame(box, fg_color="transparent")
+        l1.pack(fill="x", padx=20, pady=6)
+        ctk.CTkLabel(l1, text="Nº do Concurso:",
+                     font=ctk.CTkFont(size=13)).pack(side="left")
+        self.ent_num = ctk.CTkEntry(l1, width=110, corner_radius=8)
         self.ent_num.pack(side="left", padx=8)
-        ttk.Label(l1, text="Data (dd/mm/aaaa):",
-                  style="Card.TLabel").pack(side="left", padx=(24, 8))
-        self.ent_data = ttk.Entry(l1, width=12)
+        ctk.CTkLabel(l1, text="Data (dd/mm/aaaa):",
+                     font=ctk.CTkFont(size=13)).pack(side="left", padx=(28, 8))
+        self.ent_data = ctk.CTkEntry(l1, width=130, corner_radius=8)
         self.ent_data.pack(side="left")
-        ttk.Label(box, text="Dezenas sorteadas:", style="Card.TLabel").pack(
-            anchor="w", pady=(16, 6))
-        self.box_dezenas = ttk.Frame(box, style="Card.TFrame")
-        self.box_dezenas.pack(fill="x")
+
+        ctk.CTkLabel(box, text="Dezenas sorteadas:",
+                     font=ctk.CTkFont(size=13)).pack(anchor="w", padx=20, pady=(14, 4))
+        self.box_dezenas = ctk.CTkFrame(box, fg_color="transparent")
+        self.box_dezenas.pack(fill="x", padx=16)
         self.ent_dezenas = self._grade(self.box_dezenas)
-        ttk.Button(box, text="💾 Salvar Sorteio", style="Destaque.TButton",
-                   command=self._salvar).pack(anchor="w", pady=(20, 0))
+
+        ctk.CTkButton(box, text="💾  Salvar Sorteio", command=self._salvar,
+                      fg_color=CORES["verde"], hover_color=CORES["verde2"],
+                      corner_radius=10, font=ctk.CTkFont(size=13, weight="bold"),
+                      width=180).pack(anchor="w", padx=20, pady=(18, 20))
 
     def _montar_consulta(self):
-        box = ttk.Frame(self.tab_consulta, style="Card.TFrame", padding=20)
-        box.pack(fill="x", padx=16, pady=16)
-        ttk.Label(box, text="Verificar se uma sequência já foi sorteada",
-                  style="Card.TLabel", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 6))
-        ttk.Label(box, text="Digite as dezenas (a ordem não importa):",
-                  style="Card.TLabel").pack(anchor="w", pady=(0, 8))
-        self.box_consulta = ttk.Frame(box, style="Card.TFrame")
-        self.box_consulta.pack(fill="x")
+        tab = self.ab.tab("Consultar Sequência")
+        box = ctk.CTkFrame(tab, fg_color=CORES["card"], corner_radius=14)
+        box.pack(fill="x", padx=18, pady=18)
+
+        ctk.CTkLabel(box, text="Verificar se uma sequência já foi sorteada",
+                     font=ctk.CTkFont(size=15, weight="bold")).pack(anchor="w", padx=20, pady=(16, 2))
+        ctk.CTkLabel(box, text="Digite as dezenas (a ordem não importa):",
+                     font=ctk.CTkFont(size=13)).pack(anchor="w", padx=20, pady=(0, 8))
+        self.box_consulta = ctk.CTkFrame(box, fg_color="transparent")
+        self.box_consulta.pack(fill="x", padx=16)
         self.ent_consulta = self._grade(self.box_consulta)
-        ttk.Button(box, text="🔍 Verificar Sequência", command=self._verificar).pack(
-            anchor="w", pady=(16, 10))
-        self.lbl_res = ttk.Label(box, text="", style="Card.TLabel",
-                                 font=("Segoe UI", 10, "bold"))
-        self.lbl_res.pack(anchor="w")
+        ctk.CTkButton(box, text="🔍  Verificar Sequência", command=self._verificar,
+                      fg_color=CORES["destaque"], hover_color=CORES["destaque2"],
+                      corner_radius=10, font=ctk.CTkFont(size=13, weight="bold"),
+                      width=210).pack(anchor="w", padx=20, pady=(14, 10))
+        self.lbl_res = ctk.CTkLabel(box, text="", anchor="w", justify="left",
+                                    font=ctk.CTkFont(size=13))
+        self.lbl_res.pack(anchor="w", padx=20, pady=(0, 18))
 
     def _montar_historico(self):
-        cols = ("concurso", "data", "dezenas")
-        self.tree = ttk.Treeview(
-            self.tab_historico, columns=cols, show="headings")
-        for col, txt, w in (("concurso", "Concurso", 100), ("data", "Data", 120),
-                            ("dezenas", "Dezenas", 460)):
-            self.tree.heading(col, text=txt)
-            self.tree.column(col, width=w, anchor="center")
-        sb = ttk.Scrollbar(self.tab_historico,
-                           orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=sb.set)
-        self.tree.pack(side="left", fill="both",
-                       expand=True, padx=(16, 0), pady=16)
-        sb.pack(side="right", fill="y", pady=16)
+        tab = self.ab.tab("Histórico")
+        self.tbl_historico = TabelaCTk(tab, ("Concurso", "Data", "Dezenas"),
+                                       (110, 130, 520), alinhamentos=("center", "center", "w"))
+        self.tbl_historico.pack(fill="both", expand=True, padx=14, pady=14)
 
     def _montar_estatisticas(self):
-        f = self.tab_estatisticas
-        self.lbl_est_resumo = ttk.Label(
-            f, text="", font=("Segoe UI", 10, "bold"))
-        self.lbl_est_resumo.pack(anchor="w", padx=16, pady=(14, 6))
-        corpo = ttk.Frame(f)
-        corpo.pack(fill="both", expand=True, padx=16, pady=(0, 16))
-        box_freq = ttk.LabelFrame(corpo, text="  Frequência das dezenas  ")
-        box_freq.pack(side="left", fill="both", expand=True, padx=(0, 8))
-        self.tree_freq = ttk.Treeview(box_freq, columns=("pos", "dezena", "vezes", "pct"),
-                                      show="headings", height=18)
-        for col, txt, w in (("pos", "Pos", 60), ("dezena", "Dezena", 90),
-                            ("vezes", "Vezes", 90), ("pct", "% Sorteios", 120)):
-            self.tree_freq.heading(col, text=txt)
-            self.tree_freq.column(col, width=w, anchor="center")
-        sb1 = ttk.Scrollbar(box_freq, orient="vertical",
-                            command=self.tree_freq.yview)
-        self.tree_freq.configure(yscrollcommand=sb1.set)
-        self.tree_freq.pack(side="left", fill="both",
-                            expand=True, padx=(8, 0), pady=8)
-        sb1.pack(side="right", fill="y", pady=8)
-        box_clas = ttk.LabelFrame(
-            corpo, text="  Quentes vs Frias (percentil)  ")
-        box_clas.pack(side="left", fill="both", expand=True, padx=(8, 0))
-        ttk.Label(box_clas,
-                  text="Top 25% = 🔥 quentes  |  meio = 🌤️ mornas  |  últimos 25% = ❄️ frias",
-                  font=("Segoe UI", 8)).pack(anchor="w", padx=8, pady=(8, 2))
-        self.tree_clas = ttk.Treeview(box_clas, columns=("dezena", "vezes", "classe"),
-                                      show="headings", height=18)
-        for col, txt, w in (("dezena", "Dezena", 90), ("vezes", "Vezes", 80),
-                            ("classe", "Classificação", 200)):
-            self.tree_clas.heading(col, text=txt)
-            self.tree_clas.column(col, width=w, anchor="center")
-        self.tree_clas.column("classe", anchor="w")
-        self.tree_clas.tag_configure(
-            "t_quente", background=CORES["quente"], foreground="#ffffff")
-        self.tree_clas.tag_configure(
-            "t_morno", background=CORES["card"], foreground=CORES["texto"])
-        self.tree_clas.tag_configure(
-            "t_frio", background=CORES["frio"], foreground="#ffffff")
-        sb2 = ttk.Scrollbar(box_clas, orient="vertical",
-                            command=self.tree_clas.yview)
-        self.tree_clas.configure(yscrollcommand=sb2.set)
-        self.tree_clas.pack(side="left", fill="both",
-                            expand=True, padx=(8, 0), pady=8)
-        sb2.pack(side="right", fill="y", pady=8)
+        tab = self.ab.tab("Estatísticas")
+        self.lbl_est = ctk.CTkLabel(tab, text="", anchor="w",
+                                    font=ctk.CTkFont(size=13, weight="bold"))
+        self.lbl_est.pack(anchor="w", padx=16, pady=(14, 6))
+
+        corpo = ctk.CTkFrame(tab, fg_color="transparent")
+        corpo.pack(fill="both", expand=True, padx=8, pady=(0, 14))
+
+        col_esq = ctk.CTkFrame(corpo, fg_color="transparent")
+        col_esq.pack(side="left", fill="both", expand=True, padx=6)
+        ctk.CTkLabel(col_esq, text="Frequência das dezenas",
+                     font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", pady=(0, 6))
+        self.tbl_freq = TabelaCTk(col_esq, ("Pos", "Dezena", "Vezes", "% Sorteios"),
+                                  (70, 110, 100, 150))
+        self.tbl_freq.pack(fill="both", expand=True)
+
+        col_dir = ctk.CTkFrame(corpo, fg_color="transparent")
+        col_dir.pack(side="left", fill="both", expand=True, padx=6)
+        ctk.CTkLabel(col_dir, text="Quentes vs Frias (percentil)",
+                     font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", pady=(0, 6))
+        ctk.CTkLabel(col_dir, text="Top 25% = 🔥 quentes · meio = 🌤️ mornas · últimos 25% = ❄️ frias",
+                     font=ctk.CTkFont(size=11), text_color=CORES["texto2"]).pack(anchor="w", pady=(0, 6))
+        self.tbl_clas = TabelaCTk(col_dir, ("Dezena", "Vezes", "Classificação"),
+                                  (110, 90, 240), alinhamentos=("center", "center", "w"))
+        self.tbl_clas.pack(fill="both", expand=True)
 
     def _montar_atraso(self):
-        f = self.tab_atraso
-        self.lbl_atraso_resumo = ttk.Label(
-            f, text="", font=("Segoe UI", 10, "bold"))
-        self.lbl_atraso_resumo.pack(anchor="w", padx=16, pady=(14, 6))
-        cols = ("dezena", "ultimo", "atraso")
-        self.tree_atraso = ttk.Treeview(f, columns=cols, show="headings")
-        for col, txt, w in (("dezena", "Dezena", 130), ("ultimo", "Última saída", 300),
-                            ("atraso", "Atraso (concursos)", 220)):
-            self.tree_atraso.heading(col, text=txt)
-            self.tree_atraso.column(col, width=w, anchor="center")
-        self.tree_atraso.column("ultimo", anchor="w")
-        self.tree_atraso.tag_configure("top_atraso", background=CORES["atraso_top"],
-                                       foreground="#ffb3b3")
-        sb = ttk.Scrollbar(f, orient="vertical",
-                           command=self.tree_atraso.yview)
-        self.tree_atraso.configure(yscrollcommand=sb.set)
-        self.tree_atraso.pack(side="left", fill="both",
-                              expand=True, padx=(16, 0), pady=16)
-        sb.pack(side="right", fill="y", pady=16)
+        tab = self.ab.tab("Atraso")
+        self.lbl_atraso = ctk.CTkLabel(tab, text="", anchor="w",
+                                       font=ctk.CTkFont(size=13, weight="bold"))
+        self.lbl_atraso.pack(anchor="w", padx=16, pady=(14, 6))
+        self.tbl_atraso = TabelaCTk(tab, ("Dezena", "Última saída", "Atraso (concursos)"),
+                                    (140, 340, 260), alinhamentos=("center", "w", "center"))
+        self.tbl_atraso.pack(fill="both", expand=True, padx=14, pady=(0, 14))
 
     def _montar_alerta(self):
-        f = self.tab_alerta
-        box = ttk.Frame(f, style="Card.TFrame", padding=20)
-        box.pack(fill="x", padx=16, pady=16)
-        ttk.Label(box, text="🎯 Alerta de Similaridade", style="Card.TLabel",
-                  font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 4))
-        ttk.Label(box,
-                  text="Digite a sua aposta e veja os concursos históricos que mais se aproximaram dela. "
-                       "Análise descritiva (não previsão): mostra o que já aconteceu na base.",
-                  style="Card.TLabel", wraplength=820).pack(anchor="w", pady=(0, 10))
-        self.box_alerta = ttk.Frame(box, style="Card.TFrame")
-        self.box_alerta.pack(fill="x")
+        tab = self.ab.tab("Alerta")
+        box = ctk.CTkFrame(tab, fg_color=CORES["card"], corner_radius=14)
+        box.pack(fill="x", padx=18, pady=18)
+
+        ctk.CTkLabel(box, text="🎯 Alerta de Similaridade",
+                     font=ctk.CTkFont(size=15, weight="bold")).pack(anchor="w", padx=20, pady=(16, 2))
+        ctk.CTkLabel(box,
+                     text="Digite a sua aposta e veja os concursos históricos que mais se aproximaram dela. "
+                          "Análise descritiva (não previsão): mostra o que já aconteceu na base.",
+                     font=ctk.CTkFont(size=12), text_color=CORES["texto2"],
+                     wraplength=900).pack(anchor="w", padx=20, pady=(0, 10))
+        self.box_alerta = ctk.CTkFrame(box, fg_color="transparent")
+        self.box_alerta.pack(fill="x", padx=16)
         self.ent_alerta = self._grade(self.box_alerta)
-        self.lbl_alerta_resumo = ttk.Label(box, text="", style="Card.TLabel",
-                                           font=("Segoe UI", 10, "bold"))
-        self.lbl_alerta_resumo.pack(anchor="w", pady=(10, 6))
-        ttk.Button(box, text="🔍 Comparar Aposta", command=self._analisar_aposta).pack(
-            anchor="w", pady=(0, 6))
+        self.lbl_alerta = ctk.CTkLabel(box, text="", anchor="w", justify="left",
+                                       font=ctk.CTkFont(size=13, weight="bold"))
+        self.lbl_alerta.pack(anchor="w", padx=20, pady=(10, 6))
+        ctk.CTkButton(box, text="🔍  Comparar Aposta", command=self._analisar_aposta,
+                      fg_color=CORES["destaque"], hover_color=CORES["destaque2"],
+                      corner_radius=10, font=ctk.CTkFont(size=13, weight="bold"),
+                      width=210).pack(anchor="w", padx=20, pady=(0, 18))
 
-        cols = ("concurso", "data", "dezenas", "acertos", "acertadas")
-        self.tree_alerta = ttk.Treeview(
-            f, columns=cols, show="headings", height=12)
-        for col, txt, w in (("concurso", "Concurso", 90), ("data", "Data", 110),
-                            ("dezenas", "Dezenas do Concurso", 300),
-                            ("acertos", "Acertos", 80),
-                            ("acertadas", "Dezenas em Comum", 280)):
-            self.tree_alerta.heading(col, text=txt)
-            self.tree_alerta.column(col, width=w, anchor="center")
-        self.tree_alerta.column("dezenas", anchor="w")
-        self.tree_alerta.column("acertadas", anchor="w")
-        self.tree_alerta.tag_configure(
-            "melhor", background="#1f3d2b", foreground="#7dffb0")
-        sb = ttk.Scrollbar(f, orient="vertical",
-                           command=self.tree_alerta.yview)
-        self.tree_alerta.configure(yscrollcommand=sb.set)
-        self.tree_alerta.pack(side="left", fill="both",
-                              expand=True, padx=(16, 0), pady=(0, 16))
-        sb.pack(side="right", fill="y", pady=(0, 16))
+        self.tbl_alerta = TabelaCTk(tab, ("Concurso", "Data", "Dezenas do Concurso",
+                                          "Acertos", "Dezenas em Comum"),
+                                    (100, 120, 320, 90, 320),
+                                    alinhamentos=("center", "center", "w", "center", "w"))
+        self.tbl_alerta.pack(fill="both", expand=True, padx=14, pady=(0, 14))
 
-    def _trocar_loteria(self, _e=None):
-        nome = self.cmb.get()
+    def _montar_gerador(self):
+        tab = self.ab.tab("Gerador")
+        box = ctk.CTkFrame(tab, fg_color=CORES["card"], corner_radius=14)
+        box.pack(fill="x", padx=18, pady=18)
+
+        ctk.CTkLabel(box, text="🎲 Gerador de Jogos",
+                     font=ctk.CTkFont(size=15, weight="bold")).pack(anchor="w", padx=20, pady=(16, 2))
+        ctk.CTkLabel(box,
+                     text="Gera jogos com base no histórico da loteria selecionada. "
+                          "Análise descritiva (não previsão): os jogos seguem perfis típicos "
+                          "e evitam viéses comuns — não aumentam a chance de ganhar, "
+                          "mas dão disciplina e variedade à sua aposta.",
+                     font=ctk.CTkFont(size=12), text_color=CORES["texto2"],
+                     wraplength=900).pack(anchor="w", padx=20, pady=(0, 12))
+
+        linha = ctk.CTkFrame(box, fg_color="transparent")
+        linha.pack(fill="x", padx=20, pady=4)
+        ctk.CTkLabel(linha, text="Estratégia:",
+                     font=ctk.CTkFont(size=13)).pack(side="left")
+        self.cmb_estrategia = ctk.CTkOptionMenu(
+            linha, values=list(ESTRATEGIAS.keys()), width=230,
+            fg_color=CORES["card2"], button_color=CORES["destaque"],
+            button_hover_color=CORES["destaque2"])
+        self.cmb_estrategia.set("Equilibrado (padrão)")
+        self.cmb_estrategia.pack(side="left", padx=8)
+
+        ctk.CTkLabel(linha, text="Quantidade:", font=ctk.CTkFont(
+            size=13)).pack(side="left", padx=(28, 8))
+        self.cmb_qtd = ctk.CTkOptionMenu(
+            linha, values=[str(i) for i in range(1, 11)], width=80,
+            fg_color=CORES["card2"], button_color=CORES["destaque"],
+            button_hover_color=CORES["destaque2"])
+        self.cmb_qtd.set("5")
+        self.cmb_qtd.pack(side="left")
+
+        ctk.CTkButton(box, text="🎲  Gerar Jogos", command=self._gerar_jogos,
+                      fg_color=CORES["destaque"], hover_color=CORES["destaque2"],
+                      corner_radius=10, font=ctk.CTkFont(size=13, weight="bold"),
+                      width=190).pack(anchor="w", padx=20, pady=(14, 16))
+
+        self.lbl_gerador = ctk.CTkLabel(tab, text="", anchor="w",
+                                        font=ctk.CTkFont(size=13, weight="bold"))
+        self.lbl_gerador.pack(anchor="w", padx=16, pady=(0, 6))
+        self.tbl_gerador = TabelaCTk(tab, ("#", "Jogo", "Composição"),
+                                     (45, 460, 300), alinhamentos=("center", "w", "w"))
+        self.tbl_gerador.pack(fill="both", expand=True, padx=14, pady=(0, 14))
+
+    # ---------- Ações ----------
+    def _trocar_loteria(self, escolha=None):
+        nome = escolha or self.cmb.get()
         self.lot = next(l for l in self.loterias if l["Nome"] == nome)
         self.ent_dezenas = self._grade(self.box_dezenas)
         self.ent_consulta = self._grade(self.box_consulta)
         self.ent_alerta = self._grade(self.box_alerta)
+        self.tbl_gerador.limpar()
+        self.lbl_gerador.configure(text="")
         self._atualizar_historico()
         self._atualizar_estatisticas()
         self._atualizar_atraso()
@@ -655,13 +829,13 @@ class App:
         if res:
             texto = f"✅ JÁ FOI sorteada {len(res)} vez(es):\n"
             for r in res[:10]:
-                texto += f"  • Concurso {r['NumeroConcurso']} em {self._fmt(r['DataSorteio'])} ({r['DezenasKey']})\n"
+                texto += f"   • Concurso {r['NumeroConcurso']} em {self._fmt(r['DataSorteio'])} ({r['DezenasKey']})\n"
             if len(res) > 10:
-                texto += f"  ... mais {len(res) - 10} ocorrência(s)."
-            self.lbl_res.config(text=texto, foreground=CORES["verde"])
+                texto += f"   ... mais {len(res) - 10} ocorrência(s)."
+            self.lbl_res.configure(text=texto, text_color=CORES["verde"])
         else:
-            self.lbl_res.config(text="❌ NUNCA foi sorteada nesta loteria.",
-                                foreground=CORES["vermelho"])
+            self.lbl_res.configure(text="❌ NUNCA foi sorteada nesta loteria.",
+                                   text_color=CORES["vermelho"])
 
     def _importar_csv(self):
         caminho = filedialog.askopenfilename(
@@ -690,46 +864,42 @@ class App:
             return str(iso)
 
     def _atualizar_historico(self):
-        for item in self.tree.get_children():
-            self.tree.delete(item)
+        self.tbl_historico.limpar()
         for r in self.db.listar_concursos(self.lot["Id"]):
-            self.tree.insert("", "end",
-                             values=(r["NumeroConcurso"], self._fmt(r["DataSorteio"]), r["DezenasKey"]))
+            self.tbl_historico.adicionar(
+                (r["NumeroConcurso"], self._fmt(r["DataSorteio"]), r["DezenasKey"]))
 
     def _atualizar_estatisticas(self):
-        for w in (self.tree_freq, self.tree_clas):
-            for item in w.get_children():
-                w.delete(item)
+        self.tbl_freq.limpar()
+        self.tbl_clas.limpar()
         res = self.db.estatisticas(self.lot["Id"])
         if not res or res["total"] == 0:
-            self.lbl_est_resumo.config(
+            self.lbl_est.configure(
                 text="📭 Nenhum sorteio cadastrado ainda para esta loteria.")
             return
-        self.lbl_est_resumo.config(
+        self.lbl_est.configure(
             text=f"📈 {res['total']} concursos analisados — {self.lot['Nome']} (histórico completo)")
         for i, (dezena, vezes, pct) in enumerate(res["frequencia"], 1):
-            self.tree_freq.insert("", "end", values=(
-                i, f"{dezena:02d}", vezes, f"{pct}%"))
+            self.tbl_freq.adicionar((i, f"{dezena:02d}", vezes, f"{pct}%"))
         rotulos = {"quente": "🔥 Quente (top 25%)",
                    "morno": "🌤️ Morna (meio)",
                    "frio": "❄️ Fria (últimos 25%)"}
+        cores = {"quente": CORES["quente"],
+                 "morno": CORES["card"], "frio": CORES["frio"]}
         for dezena, vezes, classe in res["classificacao"]:
-            self.tree_clas.insert("", "end",
-                                  values=(f"{dezena:02d}", vezes,
-                                          rotulos[classe]),
-                                  tags=(f"t_{classe}",))
+            self.tbl_clas.adicionar((f"{dezena:02d}", vezes, rotulos[classe]),
+                                    fg=cores[classe])
 
     def _atualizar_atraso(self):
-        for item in self.tree_atraso.get_children():
-            self.tree_atraso.delete(item)
+        self.tbl_atraso.limpar()
         res = self.db.atraso_dezenas(
             self.lot["Id"], self.lot["MinNumero"], self.lot["MaxNumero"])
         if not res:
-            self.lbl_atraso_resumo.config(
+            self.lbl_atraso.configure(
                 text="📭 Nenhum sorteio cadastrado para esta loteria.")
             return
         top = ", ".join(f"{l['dezena']:02d}" for l in res["linhas"][:5])
-        self.lbl_atraso_resumo.config(
+        self.lbl_atraso.configure(
             text=f"📅 {res['total']} concursos · último: {res['ultimo_concurso']} "
             f"({self._fmt(res['ultima_data'])}) · mais atrasadas: {top}")
         for i, linha in enumerate(res["linhas"]):
@@ -739,11 +909,8 @@ class App:
             else:
                 ultimo = f"Concurso {linha['ultimo_concurso']} ({self._fmt(linha['ultima_data'])})"
                 atraso = f"{linha['atraso']}"
-            tags = ("top_atraso",) if i < 5 else ()
-            self.tree_atraso.insert("", "end",
-                                    values=(
-                                        f"{linha['dezena']:02d}", ultimo, atraso),
-                                    tags=tags)
+            self.tbl_atraso.adicionar((f"{linha['dezena']:02d}", ultimo, atraso),
+                                      fg=(CORES["top_atraso"] if i < 5 else CORES["card"]))
 
     def _analisar_aposta(self):
         try:
@@ -765,22 +932,42 @@ class App:
                 "Erro", f"Os números devem estar entre {mn} e {mx}.")
             return
         resultado = self.db.similaridade(self.lot["Id"], dezenas)
-        for item in self.tree_alerta.get_children():
-            self.tree_alerta.delete(item)
+        self.tbl_alerta.limpar()
         if not resultado:
-            self.lbl_alerta_resumo.config(
+            self.lbl_alerta.configure(
                 text="📭 Nenhum concurso no histórico ainda para comparar.")
             return
         aposta_txt = " · ".join(f"{d:02d}" for d in sorted(dezenas))
         melhor = resultado[0]
-        self.lbl_alerta_resumo.config(
-            text=f"Sua aposta: {aposta_txt}  →  melhor similaridade: "
+        self.lbl_alerta.configure(
+            text=f"Sua aposta: {aposta_txt}   →   melhor similaridade: "
             f"{melhor['acertos']}/{qtd} acertos no concurso {melhor['concurso']}")
         for i, r in enumerate(resultado):
-            tags = ("melhor",) if i == 0 else ()
-            self.tree_alerta.insert("", "end", values=(
-                r["concurso"], self._fmt(r["data"]), r["dezenas_key"],
-                f"{r['acertos']}/{qtd}", r["acertadas"]), tags=tags)
+            self.tbl_alerta.adicionar(
+                (r["concurso"], self._fmt(r["data"]), r["dezenas_key"],
+                 f"{r['acertos']}/{qtd}", r["acertadas"]),
+                fg=(CORES["melhor"] if i == 0 else CORES["card"]))
+
+    def _gerar_jogos(self):
+        estrategia = ESTRATEGIAS[self.cmb_estrategia.get()]
+        quantidade = int(self.cmb_qtd.get())
+        resultado = self.db.gerar_jogos(self.lot["Id"], quantidade, estrategia)
+        self.tbl_gerador.limpar()
+        if not resultado:
+            self.lbl_gerador.configure(
+                text="⚠️ Não foi possível gerar os jogos. Cadastre/importe concursos "
+                     "ou tente outra estratégia.")
+            return
+        rot = {"equilibrado": "Equilibrado",
+               "ponderado": "Ponderado por frequência",
+               "puro": "Puro aleatório"}
+        self.lbl_gerador.configure(
+            text=f"🎲 {len(resultado)} jogo(s) gerado(s) · estratégia: {rot[estrategia]} "
+            f"· {self.lot['Nome']} (análise descritiva, não previsão)")
+        for i, g in enumerate(resultado, 1):
+            jogo_txt = " · ".join(f"{d:02d}" for d in g["jogo"])
+            comp_txt = f"🔥 {g['quentes']} quentes · 🌤️ {g['mornas']} mornas · ❄️ {g['frias']} frias"
+            self.tbl_gerador.adicionar((i, jogo_txt, comp_txt))
 
     def _sair(self):
         self.db.fechar()
@@ -788,6 +975,6 @@ class App:
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    App(root)
-    root.mainloop()
+    app = ctk.CTk()
+    App(app)
+    app.mainloop()
