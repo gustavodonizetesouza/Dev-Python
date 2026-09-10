@@ -1,0 +1,35 @@
+gestor-essencial-nfe/
+├── .env.example                  # configurações por ambiente
+├── .gitignore
+├── README.md
+├── requirements.txt
+├── run.py                        # entrypoint da CLI (python run.py sync)
+├── app/
+│   ├── __init__.py
+│   ├── config.py                 # Settings central (pydantic-settings)
+│   ├── main.py                   # API FastAPI (consome o Gestor Essencial)
+│   ├── infrastructure/
+│   │   ├── __init__.py
+│   │   ├── database.py           # engine SQLAlchemy → SQL Server (pyodbc)
+│   │   ├── models.py             # ORM: tb_nfe_nota, tb_nfe_item, tb_nfe_nsu
+│   │   └── certificado.py        # carga do .pfx (A1) + PEM para TLS mútuo
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── parser.py             # XML NF-e → dict estruturado (lxml)
+│   │   ├── danfe.py              # XML → PDF (brazilfiscalreport)
+│   │   ├── distribuicao.py       # cliente NFeDistribuicaoDFe (NT 2014.002)
+│   │   └── sincronizacao.py      # orquestra NSU → baixa → grava → hash
+│   └── cli/
+│       ├── __init__.py
+│       └── main.py               # Typer CLI: sync, list, xml, pdf
+├── certs/                        # certificado A1 (.pfx) — NUNCA versionar
+├── storage/
+│   ├── xml/                      # XMLs originais (documento fiscal)
+│   └── pdf/                      # DANFEs gerados
+├── sql/
+│   └── ddl_sqlserver.sql         # DDL das tabelas (SQL Server)
+└── tests/
+    ├── __init__.py
+    ├── fixtures/                 # XMLs de exemplo para testes
+    ├── test_parser.py
+    └── test_danfe.py
