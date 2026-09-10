@@ -1,6 +1,9 @@
 # ============================================================
-#  LOTERIA APP - Python + CustomTkinter + SQLite (v8.1)
-#  Cadastro, consulta, estatísticas, atraso, alerta e GERADOR
+#  LOTERIA APP - Python + CustomTkinter + SQLite (v12.1)
+#  Cadastro, consulta, estatísticas, atraso, alerta,
+#  gerador, meus jogos, estatísticas da sequência,
+#  auto-avanço de campos, copiar entre Consulta/Alerta
+#  e ACERTOS NO ÚLTIMO CONCURSO na aba Consulta
 #  Banco: arquivo loteria.db (criado automaticamente)
 # ============================================================
 
@@ -18,8 +21,7 @@ from datetime import datetime
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
-DB_PATH = os.path.join(os.path.dirname(
-    os.path.abspath(__file__)), "loteria.db")
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "loteria.db")
 
 LOTERIAS_PADRAO = [
     ("Lotofácil", 15, 1, 25),
@@ -55,27 +57,33 @@ CORES = {
     "header": "#26263a",
 }
 
-
 def centralizar_janela(janela, largura, altura):
     janela.update_idletasks()
     x = (janela.winfo_screenwidth() - largura) // 2
     y = (janela.winfo_screenheight() - altura) // 2
     janela.geometry(f"{largura}x{altura}+{x}+{y}")
 
-
 class TabelaCTk(ctk.CTkScrollableFrame):
-    """Tabela moderna: cabeçalho fixo + linhas roláveis, com cores por linha."""
+    """Tabela moderna: cabeçalho fixo + linhas roláveis, com cores por linha
+    e botão de ação opcional (ex.: excluir)."""
 
-    def __init__(self, master, colunas, larguras, altura_linha=32, alinhamentos=None):
+    def __init__(self, master, colunas, larguras, altura_linha=32, alinhamentos=None,
+                 btn_texto=None, btn_comando=None):
         super().__init__(master, fg_color="transparent")
         self.colunas = colunas
         self.larguras = larguras
         self.alinhamentos = alinhamentos or ["center"] * len(colunas)
+        self.btn_texto = btn_texto
+        self.btn_comando = btn_comando
 
         cab = ctk.CTkFrame(self, fg_color=CORES["header"], corner_radius=8)
         cab.pack(fill="x", pady=(0, 4))
         for col, w, al in zip(colunas, larguras, self.alinhamentos):
             ctk.CTkLabel(cab, text=col, width=w, anchor=al,
+                         font=ctk.CTkFont(size=12, weight="bold"),
+                         text_color=CORES["texto"]).pack(side="left", padx=2, pady=4)
+        if btn_texto:
+            ctk.CTkLabel(cab, text="Ação", width=80, anchor="center",
                          font=ctk.CTkFont(size=12, weight="bold"),
                          text_color=CORES["texto"]).pack(side="left", padx=2, pady=4)
 
@@ -86,7 +94,7 @@ class TabelaCTk(ctk.CTkScrollableFrame):
         for w in self.linhas_box.winfo_children():
             w.destroy()
 
-    def adicionar(self, valores, fg=None, text_color=None):
+    def adicionar(self, valores, fg=None, text_color=None, btn_dado=None):
         linha = ctk.CTkFrame(self.linhas_box,
                              fg_color=fg or CORES["card"],
                              corner_radius=6)
@@ -95,7 +103,11 @@ class TabelaCTk(ctk.CTkScrollableFrame):
             ctk.CTkLabel(linha, text=str(val), width=w, anchor=al,
                          font=ctk.CTkFont(size=12),
                          text_color=text_color or CORES["texto"]).pack(side="left", padx=2, pady=2)
-
+        if self.btn_texto:
+            ctk.CTkButton(linha, text=self.btn_texto, width=74, height=26,
+                          fg_color=CORES["vermelho"], hover_color="#a03532",
+                          corner_radius=6, font=ctk.CTkFont(size=11, weight="bold"),
+                          command=lambda: self.btn_comando(btn_dado)).pack(side="left", padx=4)
 
 class Database:
     """Camada de dados: cria o banco e faz todas as operacoes."""
@@ -132,6 +144,20 @@ class Database:
         c.execute("""
             CREATE INDEX IF NOT EXISTS IX_Concursos_Loteria_Dezenas
             ON Concursos (LoteriaId, DezenasKey)
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS Jogos (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                LoteriaId INTEGER NOT NULL,
+                DataRegistro TEXT NOT NULL,
+                DezenasKey TEXT NOT NULL,
+                Observacao TEXT,
+                FOREIGN KEY (LoteriaId) REFERENCES Loterias(Id)
+            )
+        """)
+        c.execute("""
+            CREATE INDEX IF NOT EXISTS IX_Jogos_Loteria
+            ON Jogos (LoteriaId, DezenasKey)
         """)
         for nome, qtd, mn, mx in LOTERIAS_PADRAO:
             c.execute(
@@ -170,8 +196,7 @@ class Database:
         sql = (f"INSERT INTO Concursos (LoteriaId, NumeroConcurso, DataSorteio, "
                f"DezenasKey, {cols}) VALUES (?,?,?,?,{vals})")
         try:
-            self._conn.execute(
-                sql, [loteria_id, numero, data, key] + [int(d) for d in dezenas])
+            self._conn.execute(sql, [loteria_id, numero, data, key] + [int(d) for d in dezenas])
             self._conn.commit()
             return True, "Sorteio cadastrado com sucesso!"
         except sqlite3.IntegrityError:
@@ -190,8 +215,7 @@ class Database:
             except UnicodeDecodeError:
                 conteudo = raw.decode("latin-1")
         primeira = conteudo.splitlines()[0] if conteudo.splitlines() else ""
-        n_pv, n_virgula, n_tab = primeira.count(
-            ";"), primeira.count(","), primeira.count("\t")
+        n_pv, n_virgula, n_tab = primeira.count(";"), primeira.count(","), primeira.count("\t")
         if n_pv >= n_virgula and n_pv >= n_tab and n_pv > 0:
             sep = ";"
         elif n_virgula >= n_tab and n_virgula > 0:
@@ -229,11 +253,9 @@ class Database:
             try:
                 dezenas = [int(x) for x in linha[i_d1:i_d1 + qtd]]
                 if len(dezenas) != qtd:
-                    erros.append(
-                        f"Linha {n}: esperava {qtd} dezenas, achou {len(dezenas)}")
+                    erros.append(f"Linha {n}: esperava {qtd} dezenas, achou {len(dezenas)}")
                     continue
-                numero = int(
-                    float(str(linha[i_conc]).strip().replace(",", ".")))
+                numero = int(float(str(linha[i_conc]).strip().replace(",", ".")))
                 ok, msg = self.salvar_concurso(loteria_id, numero,
                                                self.parse_data(linha[i_dat]), dezenas)
                 if ok:
@@ -252,6 +274,55 @@ class Database:
         ).fetchall()
         return [dict(r) for r in rows]
 
+    def estatisticas_sequencia(self, loteria_id, dezenas):
+        """Retorna estatísticas (frequência, classe, atraso) APENAS das dezenas informadas."""
+        dezenas = sorted(int(d) for d in dezenas)
+        rows = self._conn.execute(
+            "SELECT NumeroConcurso, DataSorteio, DezenasKey FROM Concursos "
+            "WHERE LoteriaId = ? ORDER BY NumeroConcurso ASC",
+            (loteria_id,),
+        ).fetchall()
+        if not rows:
+            return None
+        total = len(rows)
+        ultimo_concurso = rows[-1]["NumeroConcurso"]
+        ultima_data = rows[-1]["DataSorteio"]
+        contador = Counter()
+        ultima_aparicao = {}
+        for r in rows:
+            for d in r["DezenasKey"].split("-"):
+                d = int(d)
+                contador[d] += 1
+                ultima_aparicao[d] = (r["NumeroConcurso"], r["DataSorteio"])
+        pares = sorted(contador.items(), key=lambda x: (-x[1], x[0]))
+        n = len(pares)
+        corte_frio = n // 4
+        corte_quente = n - n // 4
+        classe_map = {}
+        for i, (dezena, count) in enumerate(pares):
+            if i >= corte_quente:
+                classe_map[dezena] = "quente"
+            elif i < corte_frio:
+                classe_map[dezena] = "frio"
+            else:
+                classe_map[dezena] = "morno"
+        linhas = []
+        for d in dezenas:
+            vezes = contador.get(d, 0)
+            pct = round(vezes / total * 100, 1) if total else 0
+            classe = classe_map.get(d, "morno")
+            if d in ultima_aparicao:
+                conc, data = ultima_aparicao[d]
+                linhas.append({"dezena": d, "vezes": vezes, "pct": pct, "classe": classe,
+                               "atraso": ultimo_concurso - conc,
+                               "ultimo_concurso": conc, "ultima_data": data, "nunca": False})
+            else:
+                linhas.append({"dezena": d, "vezes": vezes, "pct": pct, "classe": classe,
+                               "atraso": total, "ultimo_concurso": None,
+                               "ultima_data": None, "nunca": True})
+        return {"total": total, "ultimo_concurso": ultimo_concurso,
+                "ultima_data": ultima_data, "linhas": linhas}
+
     def listar_concursos(self, loteria_id, limite=200):
         rows = self._conn.execute(
             "SELECT NumeroConcurso, DataSorteio, DezenasKey FROM Concursos "
@@ -259,6 +330,14 @@ class Database:
             (loteria_id, limite),
         ).fetchall()
         return [dict(r) for r in rows]
+
+    def ultimo_concurso(self, loteria_id):
+        row = self._conn.execute(
+            "SELECT NumeroConcurso, DataSorteio, DezenasKey FROM Concursos "
+            "WHERE LoteriaId = ? ORDER BY NumeroConcurso DESC LIMIT 1",
+            (loteria_id,),
+        ).fetchone()
+        return dict(row) if row else None
 
     def estatisticas(self, loteria_id):
         rows = self._conn.execute(
@@ -285,8 +364,7 @@ class Database:
             else:
                 classe = "morno"
             classificacao.append((dezena, count, classe))
-        frequencia = [(dezena, count, round(count / total * 100, 1))
-                      for dezena, count in pares]
+        frequencia = [(dezena, count, round(count / total * 100, 1)) for dezena, count in pares]
         return {
             "total": total,
             "frequencia": frequencia,
@@ -307,8 +385,7 @@ class Database:
         ultima_aparicao = {}
         for r in rows:
             for d in r["DezenasKey"].split("-"):
-                ultima_aparicao[int(d)] = (
-                    r["NumeroConcurso"], r["DataSorteio"])
+                ultima_aparicao[int(d)] = (r["NumeroConcurso"], r["DataSorteio"])
         linhas = []
         for dezena in range(min_num, max_num + 1):
             if dezena in ultima_aparicao:
@@ -515,12 +592,54 @@ class Database:
                           "mornas": qtd - q - f, "frias": f})
         return jogos[:quantidade]
 
+    # ---------- Meus Jogos ----------
+    def salvar_jogo(self, loteria_id, dezenas, observacao=""):
+        key = self.normalizar(dezenas)
+        dup = self._conn.execute(
+            "SELECT COUNT(*) AS c FROM Jogos WHERE LoteriaId = ? AND DezenasKey = ?",
+            (loteria_id, key),
+        ).fetchone()["c"]
+        hoje = datetime.now().date().isoformat()
+        try:
+            self._conn.execute(
+                "INSERT INTO Jogos (LoteriaId, DataRegistro, DezenasKey, Observacao) "
+                "VALUES (?,?,?,?)",
+                (loteria_id, hoje, key, observacao),
+            )
+            self._conn.commit()
+            return True, "Jogo gravado com sucesso!", dup > 0
+        except sqlite3.Error as e:
+            self._conn.rollback()
+            return False, f"Erro ao gravar: {e}", False
+
+    def listar_jogos(self, loteria_id, limite=300):
+        rows = self._conn.execute(
+            "SELECT Id, DataRegistro, DezenasKey, Observacao FROM Jogos "
+            "WHERE LoteriaId = ? ORDER BY DataRegistro DESC, Id DESC LIMIT ?",
+            (loteria_id, limite),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def status_jogos(self, loteria_id, chaves):
+        if not chaves:
+            return {}
+        placeholders = ", ".join("?" for _ in chaves)
+        rows = self._conn.execute(
+            f"SELECT DezenasKey, MAX(NumeroConcurso) AS UltimoConcurso FROM Concursos "
+            f"WHERE LoteriaId = ? AND DezenasKey IN ({placeholders}) GROUP BY DezenasKey",
+            [loteria_id] + list(chaves),
+        ).fetchall()
+        return {r["DezenasKey"]: r["UltimoConcurso"] for r in rows}
+
+    def excluir_jogo(self, jogo_id):
+        self._conn.execute("DELETE FROM Jogos WHERE Id = ?", (jogo_id,))
+        self._conn.commit()
+
     def fechar(self):
         try:
             self._conn.close()
         except Exception:
             pass
-
 
 class App:
     def __init__(self, root):
@@ -536,9 +655,10 @@ class App:
         self._atualizar_historico()
         self._atualizar_estatisticas()
         self._atualizar_atraso()
+        self._atualizar_jogos()
 
-        centralizar_janela(root, 1020, 720)
-        root.minsize(880, 600)
+        centralizar_janela(root, 1060, 740)
+        root.minsize(900, 620)
 
     # ---------- Interface ----------
     def _montar_ui(self):
@@ -546,7 +666,7 @@ class App:
         cab.pack(fill="x", padx=24, pady=(18, 4))
         ctk.CTkLabel(cab, text="🎯 Loteria Manager",
                      font=ctk.CTkFont(size=22, weight="bold")).pack(side="left")
-        ctk.CTkLabel(cab, text="Registre, consulte, analise e gere jogos",
+        ctk.CTkLabel(cab, text="Registre, consulte, analise e acompanhe seus jogos",
                      font=ctk.CTkFont(size=12), text_color=CORES["texto2"]).pack(
             side="left", padx=(14, 0), pady=(6, 0))
 
@@ -569,7 +689,7 @@ class App:
                                  segmented_button_selected_hover_color=CORES["destaque2"])
         self.ab.pack(fill="both", expand=True, padx=20, pady=(0, 18))
         for nome in ("Cadastrar Sorteio", "Consultar Sequência", "Histórico",
-                     "Estatísticas", "Atraso", "Alerta", "Gerador"):
+                     "Estatísticas", "Atraso", "Alerta", "Gerador", "Meus Jogos"):
             self.ab.add(nome)
 
         self._montar_cadastro()
@@ -579,9 +699,10 @@ class App:
         self._montar_atraso()
         self._montar_alerta()
         self._montar_gerador()
+        self._montar_meus_jogos()
 
     def _grade(self, container):
-        """Cria/recria os campos de dezenas (uma linha até 10; senão 5 por linha)."""
+        """Cria/recria os campos de dezenas, com auto-avanço ao digitar 2 dígitos."""
         for w in container.winfo_children():
             w.destroy()
         entradas, linha = [], None
@@ -597,7 +718,17 @@ class App:
                                corner_radius=8)
             ent.pack(side="left", padx=4)
             entradas.append(ent)
+        # Auto-avanço: ao completar 2 dígitos, pula para o próximo campo
+        for idx, ent in enumerate(entradas):
+            prox = entradas[idx + 1] if idx + 1 < len(entradas) else None
+            ent.bind("<KeyRelease>", lambda e, p=prox: self._auto_avancar(e, p))
         return entradas
+
+    def _auto_avancar(self, evento, proximo):
+        if proximo is None:
+            return
+        if len(evento.widget.get().strip()) >= 2:
+            proximo.focus_set()
 
     def _montar_cadastro(self):
         tab = self.ab.tab("Cadastrar Sorteio")
@@ -641,13 +772,39 @@ class App:
         self.box_consulta = ctk.CTkFrame(box, fg_color="transparent")
         self.box_consulta.pack(fill="x", padx=16)
         self.ent_consulta = self._grade(self.box_consulta)
-        ctk.CTkButton(box, text="🔍  Verificar Sequência", command=self._verificar,
+
+        l_btns = ctk.CTkFrame(box, fg_color="transparent")
+        l_btns.pack(anchor="w", padx=20, pady=(12, 10))
+        ctk.CTkButton(l_btns, text="🔍  Verificar Sequência", command=self._verificar,
                       fg_color=CORES["destaque"], hover_color=CORES["destaque2"],
                       corner_radius=10, font=ctk.CTkFont(size=13, weight="bold"),
-                      width=210).pack(anchor="w", padx=20, pady=(14, 10))
+                      width=210).pack(side="left")
+        ctk.CTkButton(l_btns, text="⬇  Copiar p/ Alerta", command=self._copiar_para_alerta,
+                      fg_color=CORES["card2"], hover_color=CORES["borda"],
+                      corner_radius=10, font=ctk.CTkFont(size=12, weight="bold"),
+                      width=160).pack(side="left", padx=(10, 0))
+        ctk.CTkButton(l_btns, text="🧹  Limpar", command=self._limpar_consulta,
+                      fg_color=CORES["card2"], hover_color=CORES["borda"],
+                      corner_radius=10, font=ctk.CTkFont(size=12, weight="bold"),
+                      width=100).pack(side="left", padx=(10, 0))
+
         self.lbl_res = ctk.CTkLabel(box, text="", anchor="w", justify="left",
                                     font=ctk.CTkFont(size=13))
-        self.lbl_res.pack(anchor="w", padx=20, pady=(0, 18))
+        self.lbl_res.pack(anchor="w", padx=20, pady=(0, 4))
+        self.lbl_res_ultimo = ctk.CTkLabel(box, text="", anchor="w", justify="left",
+                                           font=ctk.CTkFont(size=13, weight="bold"))
+        self.lbl_res_ultimo.pack(anchor="w", padx=20, pady=(0, 18))
+
+        # Estatísticas da sequência consultada
+        self.lbl_seq_est = ctk.CTkLabel(tab, text="", anchor="w",
+                                        font=ctk.CTkFont(size=13, weight="bold"))
+        self.lbl_seq_est.pack(anchor="w", padx=16, pady=(0, 6))
+        self.tbl_seq_est = TabelaCTk(tab, ("Dezena", "Vezes", "% Sorteios", "Classe",
+                                           "Atraso", "Última saída"),
+                                     (80, 80, 110, 180, 90, 210),
+                                     alinhamentos=("center", "center", "center", "w",
+                                                   "center", "w"))
+        self.tbl_seq_est.pack(fill="both", expand=True, padx=14, pady=(0, 14))
 
     def _montar_historico(self):
         tab = self.ab.tab("Histórico")
@@ -709,10 +866,21 @@ class App:
         self.lbl_alerta = ctk.CTkLabel(box, text="", anchor="w", justify="left",
                                        font=ctk.CTkFont(size=13, weight="bold"))
         self.lbl_alerta.pack(anchor="w", padx=20, pady=(10, 6))
-        ctk.CTkButton(box, text="🔍  Comparar Aposta", command=self._analisar_aposta,
+
+        l_btns = ctk.CTkFrame(box, fg_color="transparent")
+        l_btns.pack(anchor="w", padx=20, pady=(0, 18))
+        ctk.CTkButton(l_btns, text="🔍  Comparar Aposta", command=self._analisar_aposta,
                       fg_color=CORES["destaque"], hover_color=CORES["destaque2"],
                       corner_radius=10, font=ctk.CTkFont(size=13, weight="bold"),
-                      width=210).pack(anchor="w", padx=20, pady=(0, 18))
+                      width=210).pack(side="left")
+        ctk.CTkButton(l_btns, text="⬆  Copiar p/ Consulta", command=self._copiar_para_consulta,
+                      fg_color=CORES["card2"], hover_color=CORES["borda"],
+                      corner_radius=10, font=ctk.CTkFont(size=12, weight="bold"),
+                      width=170).pack(side="left", padx=(10, 0))
+        ctk.CTkButton(l_btns, text="🧹  Limpar", command=self._limpar_alerta,
+                      fg_color=CORES["card2"], hover_color=CORES["borda"],
+                      corner_radius=10, font=ctk.CTkFont(size=12, weight="bold"),
+                      width=100).pack(side="left", padx=(10, 0))
 
         self.tbl_alerta = TabelaCTk(tab, ("Concurso", "Data", "Dezenas do Concurso",
                                           "Acertos", "Dezenas em Comum"),
@@ -737,8 +905,7 @@ class App:
 
         linha = ctk.CTkFrame(box, fg_color="transparent")
         linha.pack(fill="x", padx=20, pady=4)
-        ctk.CTkLabel(linha, text="Estratégia:",
-                     font=ctk.CTkFont(size=13)).pack(side="left")
+        ctk.CTkLabel(linha, text="Estratégia:", font=ctk.CTkFont(size=13)).pack(side="left")
         self.cmb_estrategia = ctk.CTkOptionMenu(
             linha, values=list(ESTRATEGIAS.keys()), width=230,
             fg_color=CORES["card2"], button_color=CORES["destaque"],
@@ -746,8 +913,7 @@ class App:
         self.cmb_estrategia.set("Equilibrado (padrão)")
         self.cmb_estrategia.pack(side="left", padx=8)
 
-        ctk.CTkLabel(linha, text="Quantidade:", font=ctk.CTkFont(
-            size=13)).pack(side="left", padx=(28, 8))
+        ctk.CTkLabel(linha, text="Quantidade:", font=ctk.CTkFont(size=13)).pack(side="left", padx=(28, 8))
         self.cmb_qtd = ctk.CTkOptionMenu(
             linha, values=[str(i) for i in range(1, 11)], width=80,
             fg_color=CORES["card2"], button_color=CORES["destaque"],
@@ -767,6 +933,54 @@ class App:
                                      (45, 460, 300), alinhamentos=("center", "w", "w"))
         self.tbl_gerador.pack(fill="both", expand=True, padx=14, pady=(0, 14))
 
+    def _montar_meus_jogos(self):
+        tab = self.ab.tab("Meus Jogos")
+        box = ctk.CTkFrame(tab, fg_color=CORES["card"], corner_radius=14)
+        box.pack(fill="x", padx=18, pady=18)
+
+        ctk.CTkLabel(box, text="📋 Meus Jogos",
+                     font=ctk.CTkFont(size=15, weight="bold")).pack(anchor="w", padx=20, pady=(16, 2))
+        ctk.CTkLabel(box,
+                     text="Grave as suas apostas e confira cada jogo contra o ÚLTIMO sorteio cadastrado. "
+                          "O status e os acertos atualizam sozinhos ao salvar/importar concursos — "
+                          "use o botão Atualizar para conferir manualmente a qualquer momento.",
+                     font=ctk.CTkFont(size=12), text_color=CORES["texto2"],
+                     wraplength=940).pack(anchor="w", padx=20, pady=(0, 10))
+
+        ctk.CTkLabel(box, text="Dezenas do jogo:",
+                     font=ctk.CTkFont(size=13)).pack(anchor="w", padx=20, pady=(0, 4))
+        self.box_jogos = ctk.CTkFrame(box, fg_color="transparent")
+        self.box_jogos.pack(fill="x", padx=16)
+        self.ent_jogos = self._grade(self.box_jogos)
+
+        l_obs = ctk.CTkFrame(box, fg_color="transparent")
+        l_obs.pack(fill="x", padx=20, pady=(10, 4))
+        ctk.CTkLabel(l_obs, text="Observação (opcional):",
+                     font=ctk.CTkFont(size=13)).pack(side="left")
+        self.ent_jogo_obs = ctk.CTkEntry(l_obs, width=420, corner_radius=8)
+        self.ent_jogo_obs.pack(side="left", padx=8)
+
+        l_btns = ctk.CTkFrame(box, fg_color="transparent")
+        l_btns.pack(anchor="w", padx=20, pady=(12, 16))
+        ctk.CTkButton(l_btns, text="💾  Gravar Jogo", command=self._gravar_jogo,
+                      fg_color=CORES["verde"], hover_color=CORES["verde2"],
+                      corner_radius=10, font=ctk.CTkFont(size=13, weight="bold"),
+                      width=180).pack(side="left")
+        ctk.CTkButton(l_btns, text="🔄  Atualizar", command=self._atualizar_jogos,
+                      fg_color=CORES["destaque"], hover_color=CORES["destaque2"],
+                      corner_radius=10, font=ctk.CTkFont(size=13, weight="bold"),
+                      width=150).pack(side="left", padx=(12, 0))
+
+        self.lbl_jogos = ctk.CTkLabel(tab, text="", anchor="w",
+                                      font=ctk.CTkFont(size=13, weight="bold"))
+        self.lbl_jogos.pack(anchor="w", padx=16, pady=(0, 6))
+        self.tbl_jogos = TabelaCTk(tab, ("Data", "Jogo", "Status", "Acertos no último sorteio",
+                                         "Observação"),
+                                   (90, 260, 200, 190, 170),
+                                   alinhamentos=("center", "w", "w", "center", "w"),
+                                   btn_texto="🗑 Excluir", btn_comando=self._excluir_jogo)
+        self.tbl_jogos.pack(fill="both", expand=True, padx=14, pady=(0, 14))
+
     # ---------- Ações ----------
     def _trocar_loteria(self, escolha=None):
         nome = escolha or self.cmb.get()
@@ -774,11 +988,42 @@ class App:
         self.ent_dezenas = self._grade(self.box_dezenas)
         self.ent_consulta = self._grade(self.box_consulta)
         self.ent_alerta = self._grade(self.box_alerta)
+        self.ent_jogos = self._grade(self.box_jogos)
+        self.ent_jogo_obs.delete(0, "end")
         self.tbl_gerador.limpar()
         self.lbl_gerador.configure(text="")
+        self.lbl_res.configure(text="")
+        self.lbl_res_ultimo.configure(text="")
+        self.tbl_seq_est.limpar()
+        self.lbl_seq_est.configure(text="")
         self._atualizar_historico()
         self._atualizar_estatisticas()
         self._atualizar_atraso()
+        self._atualizar_jogos()
+
+    def _copiar_para_alerta(self):
+        for origem, destino in zip(self.ent_consulta, self.ent_alerta):
+            destino.delete(0, "end")
+            destino.insert(0, origem.get().strip())
+
+    def _copiar_para_consulta(self):
+        for origem, destino in zip(self.ent_alerta, self.ent_consulta):
+            destino.delete(0, "end")
+            destino.insert(0, origem.get().strip())
+
+    def _limpar_consulta(self):
+        for e in self.ent_consulta:
+            e.delete(0, "end")
+        self.lbl_res.configure(text="")
+        self.lbl_res_ultimo.configure(text="")
+        self.tbl_seq_est.limpar()
+        self.lbl_seq_est.configure(text="")
+
+    def _limpar_alerta(self):
+        for e in self.ent_alerta:
+            e.delete(0, "end")
+        self.lbl_alerta.configure(text="")
+        self.tbl_alerta.limpar()
 
     def _salvar(self):
         try:
@@ -796,11 +1041,9 @@ class App:
             messagebox.showerror("Erro", "Existem dezenas repetidas.")
             return
         if not all(mn <= d <= mx for d in dezenas):
-            messagebox.showerror(
-                "Erro", f"As dezenas devem estar entre {mn} e {mx}.")
+            messagebox.showerror("Erro", f"As dezenas devem estar entre {mn} e {mx}.")
             return
-        ok, msg = self.db.salvar_concurso(
-            self.lot["Id"], numero, data, dezenas)
+        ok, msg = self.db.salvar_concurso(self.lot["Id"], numero, data, dezenas)
         if ok:
             messagebox.showinfo("Sucesso", msg)
             for e in self.ent_dezenas:
@@ -811,6 +1054,7 @@ class App:
             self._atualizar_historico()
             self._atualizar_estatisticas()
             self._atualizar_atraso()
+            self._atualizar_jogos()
         else:
             messagebox.showwarning("Atenção", msg)
 
@@ -818,8 +1062,7 @@ class App:
         try:
             dezenas = [int(e.get().strip()) for e in self.ent_consulta]
         except ValueError:
-            messagebox.showerror(
-                "Erro", "Preencha todos os números corretamente.")
+            messagebox.showerror("Erro", "Preencha todos os números corretamente.")
             return
         qtd = self.lot["QtdDezenas"]
         if len(dezenas) != qtd or len(set(dezenas)) != qtd:
@@ -836,6 +1079,45 @@ class App:
         else:
             self.lbl_res.configure(text="❌ NUNCA foi sorteada nesta loteria.",
                                    text_color=CORES["vermelho"])
+        # Acertos no último concurso (apenas a quantidade)
+        ultimo = self.db.ultimo_concurso(self.lot["Id"])
+        if ultimo:
+            conj_ultimo = set(int(d) for d in ultimo["DezenasKey"].split("-"))
+            acertadas = sorted(set(dezenas) & conj_ultimo)
+            self.lbl_res_ultimo.configure(
+                text=f"🎯 Acertos no último concurso {ultimo['NumeroConcurso']} "
+                     f"({self._fmt(ultimo['DataSorteio'])}): {len(acertadas)}/{qtd}",
+                text_color=CORES["texto"])
+        else:
+            self.lbl_res_ultimo.configure(
+                text="🎯 Nenhum concurso cadastrado ainda para esta loteria.",
+                text_color=CORES["texto2"])
+        # Estatísticas apenas dos números informados
+        self.tbl_seq_est.limpar()
+        est = self.db.estatisticas_sequencia(self.lot["Id"], dezenas)
+        if not est:
+            self.lbl_seq_est.configure(
+                text="📭 Nenhum concurso cadastrado para esta loteria ainda.")
+            return
+        self.lbl_seq_est.configure(
+            text=f"📊 Estatísticas dos {len(dezenas)} números consultados "
+                 f"(base: {est['total']} concursos · último: concurso "
+                 f"{est['ultimo_concurso']} em {self._fmt(est['ultima_data'])})")
+        rotulos = {"quente": "🔥 Quente (top 25%)",
+                   "morno": "🌤️ Morna (meio)",
+                   "frio": "❄️ Fria (últimos 25%)"}
+        cores = {"quente": CORES["quente"], "morno": CORES["card"], "frio": CORES["frio"]}
+        for linha in est["linhas"]:
+            if linha["nunca"]:
+                ultimo = "Nunca saiu"
+                atraso = "desde o início"
+            else:
+                ultimo = f"Concurso {linha['ultimo_concurso']} ({self._fmt(linha['ultima_data'])})"
+                atraso = f"{linha['atraso']}"
+            self.tbl_seq_est.adicionar(
+                (f"{linha['dezena']:02d}", linha["vezes"], f"{linha['pct']}%",
+                 rotulos[linha["classe"]], atraso, ultimo),
+                fg=cores[linha["classe"]])
 
     def _importar_csv(self):
         caminho = filedialog.askopenfilename(
@@ -844,8 +1126,7 @@ class App:
         if not caminho:
             return
         try:
-            inseridos, erros = self.db.importar_csv(
-                caminho, self.lot["Id"], self.lot["QtdDezenas"])
+            inseridos, erros = self.db.importar_csv(caminho, self.lot["Id"], self.lot["QtdDezenas"])
         except Exception as e:
             messagebox.showerror("Erro", f"Falha na importação:\n{e}")
             return
@@ -856,6 +1137,7 @@ class App:
         self._atualizar_historico()
         self._atualizar_estatisticas()
         self._atualizar_atraso()
+        self._atualizar_jogos()
 
     def _fmt(self, iso):
         try:
@@ -874,8 +1156,7 @@ class App:
         self.tbl_clas.limpar()
         res = self.db.estatisticas(self.lot["Id"])
         if not res or res["total"] == 0:
-            self.lbl_est.configure(
-                text="📭 Nenhum sorteio cadastrado ainda para esta loteria.")
+            self.lbl_est.configure(text="📭 Nenhum sorteio cadastrado ainda para esta loteria.")
             return
         self.lbl_est.configure(
             text=f"📈 {res['total']} concursos analisados — {self.lot['Nome']} (histórico completo)")
@@ -884,24 +1165,21 @@ class App:
         rotulos = {"quente": "🔥 Quente (top 25%)",
                    "morno": "🌤️ Morna (meio)",
                    "frio": "❄️ Fria (últimos 25%)"}
-        cores = {"quente": CORES["quente"],
-                 "morno": CORES["card"], "frio": CORES["frio"]}
+        cores = {"quente": CORES["quente"], "morno": CORES["card"], "frio": CORES["frio"]}
         for dezena, vezes, classe in res["classificacao"]:
             self.tbl_clas.adicionar((f"{dezena:02d}", vezes, rotulos[classe]),
                                     fg=cores[classe])
 
     def _atualizar_atraso(self):
         self.tbl_atraso.limpar()
-        res = self.db.atraso_dezenas(
-            self.lot["Id"], self.lot["MinNumero"], self.lot["MaxNumero"])
+        res = self.db.atraso_dezenas(self.lot["Id"], self.lot["MinNumero"], self.lot["MaxNumero"])
         if not res:
-            self.lbl_atraso.configure(
-                text="📭 Nenhum sorteio cadastrado para esta loteria.")
+            self.lbl_atraso.configure(text="📭 Nenhum sorteio cadastrado para esta loteria.")
             return
         top = ", ".join(f"{l['dezena']:02d}" for l in res["linhas"][:5])
         self.lbl_atraso.configure(
             text=f"📅 {res['total']} concursos · último: {res['ultimo_concurso']} "
-            f"({self._fmt(res['ultima_data'])}) · mais atrasadas: {top}")
+                 f"({self._fmt(res['ultima_data'])}) · mais atrasadas: {top}")
         for i, linha in enumerate(res["linhas"]):
             if linha["nunca"]:
                 ultimo = "Nunca saiu"
@@ -916,32 +1194,28 @@ class App:
         try:
             dezenas = [int(e.get().strip()) for e in self.ent_alerta]
         except ValueError:
-            messagebox.showerror(
-                "Erro", "Preencha todos os números corretamente.")
+            messagebox.showerror("Erro", "Preencha todos os números corretamente.")
             return
         qtd, mn, mx = self.lot["QtdDezenas"], self.lot["MinNumero"], self.lot["MaxNumero"]
         if len(dezenas) != qtd:
             messagebox.showerror("Erro", f"Informe exatamente {qtd} números.")
             return
         if len(set(dezenas)) != qtd:
-            messagebox.showerror(
-                "Erro", "Existem números repetidos na aposta.")
+            messagebox.showerror("Erro", "Existem números repetidos na aposta.")
             return
         if not all(mn <= d <= mx for d in dezenas):
-            messagebox.showerror(
-                "Erro", f"Os números devem estar entre {mn} e {mx}.")
+            messagebox.showerror("Erro", f"Os números devem estar entre {mn} e {mx}.")
             return
         resultado = self.db.similaridade(self.lot["Id"], dezenas)
         self.tbl_alerta.limpar()
         if not resultado:
-            self.lbl_alerta.configure(
-                text="📭 Nenhum concurso no histórico ainda para comparar.")
+            self.lbl_alerta.configure(text="📭 Nenhum concurso no histórico ainda para comparar.")
             return
         aposta_txt = " · ".join(f"{d:02d}" for d in sorted(dezenas))
         melhor = resultado[0]
         self.lbl_alerta.configure(
             text=f"Sua aposta: {aposta_txt}   →   melhor similaridade: "
-            f"{melhor['acertos']}/{qtd} acertos no concurso {melhor['concurso']}")
+                 f"{melhor['acertos']}/{qtd} acertos no concurso {melhor['concurso']}")
         for i, r in enumerate(resultado):
             self.tbl_alerta.adicionar(
                 (r["concurso"], self._fmt(r["data"]), r["dezenas_key"],
@@ -963,18 +1237,121 @@ class App:
                "puro": "Puro aleatório"}
         self.lbl_gerador.configure(
             text=f"🎲 {len(resultado)} jogo(s) gerado(s) · estratégia: {rot[estrategia]} "
-            f"· {self.lot['Nome']} (análise descritiva, não previsão)")
+                 f"· {self.lot['Nome']} (análise descritiva, não previsão)")
         for i, g in enumerate(resultado, 1):
             jogo_txt = " · ".join(f"{d:02d}" for d in g["jogo"])
             comp_txt = f"🔥 {g['quentes']} quentes · 🌤️ {g['mornas']} mornas · ❄️ {g['frias']} frias"
             self.tbl_gerador.adicionar((i, jogo_txt, comp_txt))
 
+    # ---------- Meus Jogos ----------
+    def _gravar_jogo(self):
+        try:
+            dezenas = [int(e.get().strip()) for e in self.ent_jogos]
+        except ValueError:
+            messagebox.showerror("Erro", "Preencha todos os números corretamente.")
+            return
+        qtd, mn, mx = self.lot["QtdDezenas"], self.lot["MinNumero"], self.lot["MaxNumero"]
+        if len(dezenas) != qtd:
+            messagebox.showerror("Erro", f"Informe exatamente {qtd} números.")
+            return
+        if len(set(dezenas)) != qtd:
+            messagebox.showerror("Erro", "Existem números repetidos no jogo.")
+            return
+        if not all(mn <= d <= mx for d in dezenas):
+            messagebox.showerror("Erro", f"Os números devem estar entre {mn} e {mx}.")
+            return
+        observacao = self.ent_jogo_obs.get().strip()
+        ok, msg, duplicado = self.db.salvar_jogo(self.lot["Id"], dezenas, observacao)
+        if not ok:
+            messagebox.showerror("Erro", msg)
+            return
+        res = self.db.consultar_sequencia(self.lot["Id"], dezenas)
+        texto = msg
+        if duplicado:
+            texto += "\n\n⚠️ Já existe um jogo idêntico gravado (mantive mesmo assim)."
+        if res:
+            texto += (f"\n\nℹ️ Atenção: essa sequência JÁ foi sorteada no concurso "
+                      f"{res[0]['NumeroConcurso']}.")
+        messagebox.showinfo("Jogo gravado", texto)
+        for e in self.ent_jogos:
+            e.delete(0, "end")
+        self.ent_jogo_obs.delete(0, "end")
+        self._atualizar_jogos()
+
+    def _excluir_jogo(self, jogo_id):
+        if not messagebox.askyesno("Excluir jogo", "Deseja excluir este jogo gravado?"):
+            return
+        self.db.excluir_jogo(jogo_id)
+        self._atualizar_jogos()
+
+    def _atualizar_jogos(self):
+        self.tbl_jogos.limpar()
+        jogos = self.db.listar_jogos(self.lot["Id"])
+        ultimo = self.db.ultimo_concurso(self.lot["Id"])
+        if not jogos:
+            if ultimo:
+                self.lbl_jogos.configure(
+                    text=f"📋 Nenhum jogo gravado para {self.lot['Nome']}. "
+                         f"Último sorteio cadastrado: concurso {ultimo['NumeroConcurso']} "
+                         f"({self._fmt(ultimo['DataSorteio'])}).")
+            else:
+                self.lbl_jogos.configure(
+                    text=f"📋 Nenhum jogo gravado para {self.lot['Nome']}.")
+            return
+        chaves = [j["DezenasKey"] for j in jogos]
+        sorteadas = self.db.status_jogos(self.lot["Id"], chaves)
+        n_sorteados = sum(1 for k in chaves if k in sorteadas)
+        if ultimo:
+            conj_ultimo = set(int(d) for d in ultimo["DezenasKey"].split("-"))
+            suf = (f" · último sorteio: concurso {ultimo['NumeroConcurso']} "
+                   f"({self._fmt(ultimo['DataSorteio'])})")
+        else:
+            conj_ultimo = None
+            suf = " · nenhum concurso cadastrado ainda"
+        self.lbl_jogos.configure(
+            text=f"📋 {len(jogos)} jogo(s) · ✅ {n_sorteados} já sorteados"
+                 f" · ❌ {len(jogos) - n_sorteados} nunca sorteados{suf}")
+        for j in jogos:
+            if j["DezenasKey"] in sorteadas:
+                status = f"✅ Já sorteado (concurso {sorteadas[j['DezenasKey']]})"
+                cor = CORES["melhor"]
+            else:
+                status = "❌ Nunca sorteado"
+                cor = CORES["card"]
+            if conj_ultimo is not None:
+                dezs_jogo = set(int(d) for d in j["DezenasKey"].split("-"))
+                txt_ac = f"{len(conj_ultimo & dezs_jogo)}"
+            else:
+                txt_ac = "—"
+            obs = j["Observacao"] or "—"
+            self.tbl_jogos.adicionar(
+                (self._fmt(j["DataRegistro"]), j["DezenasKey"], status, txt_ac, obs),
+                fg=cor, btn_dado=j["Id"])
+
     def _sair(self):
         self.db.fechar()
         self.root.destroy()
 
-
 if __name__ == "__main__":
+    import traceback as _tb
+
     app = ctk.CTk()
+
+    def _reportar_erro(exc, val, tbk):
+        texto = "".join(_tb.format_exception(exc, val, tbk))
+        try:
+            print("===== ERRO NO APP =====")
+            print(texto)
+            print("=======================")
+        except Exception:
+            pass
+        try:
+            messagebox.showerror(
+                "Erro inesperado",
+                f"{exc.__name__}: {val}\n\nRastreamento completo no console (terminal).")
+        except Exception:
+            pass
+
+    app.report_callback_exception = _reportar_erro
     App(app)
     app.mainloop()
