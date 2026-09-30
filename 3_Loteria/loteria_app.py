@@ -1,9 +1,13 @@
 # ============================================================
-#  LOTERIA APP - Python + CustomTkinter + SQLite (v12.1)
+#  LOTERIA APP - Python + CustomTkinter + SQLite (v15.2)
 #  Cadastro, consulta, estatísticas, atraso, alerta,
 #  gerador, meus jogos, estatísticas da sequência,
-#  auto-avanço de campos, copiar entre Consulta/Alerta
-#  e ACERTOS NO ÚLTIMO CONCURSO na aba Consulta
+#  auto-avanço, copiar entre Consulta/Alerta,
+#  acertos no último concurso, máscara de data,
+#  atraso na gravação do jogo, atraso por concurso,
+#  botão alterar no histórico, layout de botões corrigido,
+#  REGRA DE ATRASO FINAL (diferença + repetição imediata = 0)
+#  e CACHE DE CONCURSOS
 #  Banco: arquivo loteria.db (criado automaticamente)
 # ============================================================
 
@@ -65,27 +69,38 @@ def centralizar_janela(janela, largura, altura):
 
 class TabelaCTk(ctk.CTkScrollableFrame):
     """Tabela moderna: cabeçalho fixo + linhas roláveis, com cores por linha
-    e botão de ação opcional (ex.: excluir)."""
+    e até dois botões de ação por linha. A última coluna expande para preencher
+    a largura e os botões ficam ancorados à direita (não flutuam no centro)."""
 
     def __init__(self, master, colunas, larguras, altura_linha=32, alinhamentos=None,
-                 btn_texto=None, btn_comando=None):
+                 btn_texto=None, btn_comando=None,
+                 btn2_texto=None, btn2_comando=None):
         super().__init__(master, fg_color="transparent")
         self.colunas = colunas
         self.larguras = larguras
         self.alinhamentos = alinhamentos or ["center"] * len(colunas)
         self.btn_texto = btn_texto
         self.btn_comando = btn_comando
+        self.btn2_texto = btn2_texto
+        self.btn2_comando = btn2_comando
 
         cab = ctk.CTkFrame(self, fg_color=CORES["header"], corner_radius=8)
         cab.pack(fill="x", pady=(0, 4))
-        for col, w, al in zip(colunas, larguras, self.alinhamentos):
-            ctk.CTkLabel(cab, text=col, width=w, anchor=al,
+        # Botões/coluna de ações ancorados à direita
+        if btn_texto or btn2_texto:
+            ctk.CTkLabel(cab, text="Ações", width=170, anchor="center",
                          font=ctk.CTkFont(size=12, weight="bold"),
-                         text_color=CORES["texto"]).pack(side="left", padx=2, pady=4)
-        if btn_texto:
-            ctk.CTkLabel(cab, text="Ação", width=80, anchor="center",
-                         font=ctk.CTkFont(size=12, weight="bold"),
-                         text_color=CORES["texto"]).pack(side="left", padx=2, pady=4)
+                         text_color=CORES["texto"]).pack(side="right", padx=2, pady=4)
+        # Colunas de dados; a última expande para preencher a largura
+        for i, (col, w, al) in enumerate(zip(colunas, larguras, self.alinhamentos)):
+            ultima = (i == len(colunas) - 1)
+            lbl = ctk.CTkLabel(cab, text=col, width=w, anchor=al,
+                               font=ctk.CTkFont(size=12, weight="bold"),
+                               text_color=CORES["texto"])
+            if ultima:
+                lbl.pack(side="left", expand=True, fill="x", padx=2, pady=4)
+            else:
+                lbl.pack(side="left", padx=2, pady=4)
 
         self.linhas_box = ctk.CTkFrame(self, fg_color="transparent")
         self.linhas_box.pack(fill="x")
@@ -94,28 +109,43 @@ class TabelaCTk(ctk.CTkScrollableFrame):
         for w in self.linhas_box.winfo_children():
             w.destroy()
 
-    def adicionar(self, valores, fg=None, text_color=None, btn_dado=None):
+    def adicionar(self, valores, fg=None, text_color=None, btn_dado=None, btn2_dado=None):
         linha = ctk.CTkFrame(self.linhas_box,
                              fg_color=fg or CORES["card"],
                              corner_radius=6)
         linha.pack(fill="x", pady=1)
-        for val, w, al in zip(valores, self.larguras, self.alinhamentos):
-            ctk.CTkLabel(linha, text=str(val), width=w, anchor=al,
-                         font=ctk.CTkFont(size=12),
-                         text_color=text_color or CORES["texto"]).pack(side="left", padx=2, pady=2)
+        # Botões ancorados à direita
         if self.btn_texto:
-            ctk.CTkButton(linha, text=self.btn_texto, width=74, height=26,
-                          fg_color=CORES["vermelho"], hover_color="#a03532",
+            ctk.CTkButton(linha, text=self.btn_texto, width=80, height=26,
+                          fg_color=CORES["destaque"], hover_color=CORES["destaque2"],
                           corner_radius=6, font=ctk.CTkFont(size=11, weight="bold"),
-                          command=lambda: self.btn_comando(btn_dado)).pack(side="left", padx=4)
+                          command=lambda: self.btn_comando(btn_dado)).pack(side="right", padx=4)
+        if self.btn2_texto:
+            ctk.CTkButton(linha, text=self.btn2_texto, width=80, height=26,
+                          fg_color=CORES["card2"], hover_color=CORES["borda"],
+                          corner_radius=6, font=ctk.CTkFont(size=11, weight="bold"),
+                          command=lambda: self.btn2_comando(btn2_dado)).pack(side="right", padx=4)
+        # Colunas de dados; a última expande
+        for i, (val, w, al) in enumerate(zip(valores, self.larguras, self.alinhamentos)):
+            ultima = (i == len(valores) - 1)
+            lbl = ctk.CTkLabel(linha, text=str(val), width=w, anchor=al,
+                               font=ctk.CTkFont(size=12),
+                               text_color=text_color or CORES["texto"])
+            if ultima:
+                lbl.pack(side="left", expand=True, fill="x", padx=2, pady=2)
+            else:
+                lbl.pack(side="left", padx=2, pady=2)
 
 class Database:
-    """Camada de dados: cria o banco e faz todas as operacoes."""
+    """Camada de dados: cria o banco e faz todas as operacoes.
+    Mantém um cache em memória dos concursos por loteria para evitar
+    reconsultas repetidas ao banco (melhora a performance)."""
 
     def __init__(self):
         self._conn = sqlite3.connect(DB_PATH)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
+        self._cache_concursos = {}
         self._criar_estrutura()
 
     def _criar_estrutura(self):
@@ -152,9 +182,13 @@ class Database:
                 DataRegistro TEXT NOT NULL,
                 DezenasKey TEXT NOT NULL,
                 Observacao TEXT,
+                AtrasoSnapshot TEXT,
                 FOREIGN KEY (LoteriaId) REFERENCES Loterias(Id)
             )
         """)
+        cols = [r["name"] for r in c.execute("PRAGMA table_info(Jogos)").fetchall()]
+        if "AtrasoSnapshot" not in cols:
+            c.execute("ALTER TABLE Jogos ADD COLUMN AtrasoSnapshot TEXT")
         c.execute("""
             CREATE INDEX IF NOT EXISTS IX_Jogos_Loteria
             ON Jogos (LoteriaId, DezenasKey)
@@ -166,6 +200,22 @@ class Database:
             )
         self._conn.commit()
         c.close()
+
+    # ---------- Cache de concursos ----------
+    def _get_concursos(self, loteria_id):
+        """Retorna a lista cacheada de concursos (NumeroConcurso, DataSorteio, DezenasKey)
+        em ordem crescente. Consulta o banco apenas uma vez por loteria."""
+        if loteria_id not in self._cache_concursos:
+            rows = self._conn.execute(
+                "SELECT NumeroConcurso, DataSorteio, DezenasKey FROM Concursos "
+                "WHERE LoteriaId = ? ORDER BY NumeroConcurso ASC",
+                (loteria_id,),
+            ).fetchall()
+            self._cache_concursos[loteria_id] = [dict(r) for r in rows]
+        return self._cache_concursos[loteria_id]
+
+    def _invalidate(self, loteria_id):
+        self._cache_concursos.pop(loteria_id, None)
 
     def listar_loterias(self):
         rows = self._conn.execute(
@@ -198,10 +248,32 @@ class Database:
         try:
             self._conn.execute(sql, [loteria_id, numero, data, key] + [int(d) for d in dezenas])
             self._conn.commit()
+            self._invalidate(loteria_id)
             return True, "Sorteio cadastrado com sucesso!"
         except sqlite3.IntegrityError:
             self._conn.rollback()
             return False, f"Concurso {numero} já existe para esta loteria."
+
+    def update_concurso(self, loteria_id, numero, data, dezenas):
+        """Atualiza um concurso existente (usado pelo botão Alterar do Histórico)."""
+        key = self.normalizar(dezenas)
+        cols = ", ".join(f"D{i+1}=?" for i in range(len(dezenas)))
+        sql = (f"UPDATE Concursos SET DataSorteio=?, DezenasKey=?, {cols} "
+               f"WHERE LoteriaId=? AND NumeroConcurso=?")
+        try:
+            self._conn.execute(sql, [data, key] + [int(d) for d in dezenas] + [loteria_id, numero])
+            self._conn.commit()
+            self._invalidate(loteria_id)
+            return True, "Sorteio atualizado com sucesso!"
+        except sqlite3.Error as e:
+            self._conn.rollback()
+            return False, f"Erro ao atualizar: {e}"
+
+    def obter_concurso(self, loteria_id, numero):
+        for r in self._get_concursos(loteria_id):
+            if r["NumeroConcurso"] == numero:
+                return r
+        return None
 
     def importar_csv(self, caminho, loteria_id, qtd):
         inseridos, erros = 0, []
@@ -267,29 +339,21 @@ class Database:
         return inseridos, erros
 
     def consultar_sequencia(self, loteria_id, dezenas):
-        rows = self._conn.execute(
-            "SELECT NumeroConcurso, DataSorteio, DezenasKey FROM Concursos "
-            "WHERE LoteriaId = ? AND DezenasKey = ? ORDER BY NumeroConcurso",
-            (loteria_id, self.normalizar(dezenas)),
-        ).fetchall()
-        return [dict(r) for r in rows]
+        key = self.normalizar(dezenas)
+        return [r for r in self._get_concursos(loteria_id) if r["DezenasKey"] == key]
 
     def estatisticas_sequencia(self, loteria_id, dezenas):
         """Retorna estatísticas (frequência, classe, atraso) APENAS das dezenas informadas."""
         dezenas = sorted(int(d) for d in dezenas)
-        rows = self._conn.execute(
-            "SELECT NumeroConcurso, DataSorteio, DezenasKey FROM Concursos "
-            "WHERE LoteriaId = ? ORDER BY NumeroConcurso ASC",
-            (loteria_id,),
-        ).fetchall()
-        if not rows:
+        dados = self._get_concursos(loteria_id)
+        if not dados:
             return None
-        total = len(rows)
-        ultimo_concurso = rows[-1]["NumeroConcurso"]
-        ultima_data = rows[-1]["DataSorteio"]
+        total = len(dados)
+        ultimo_concurso = dados[-1]["NumeroConcurso"]
+        ultima_data = dados[-1]["DataSorteio"]
         contador = Counter()
         ultima_aparicao = {}
-        for r in rows:
+        for r in dados:
             for d in r["DezenasKey"].split("-"):
                 d = int(d)
                 contador[d] += 1
@@ -324,31 +388,58 @@ class Database:
                 "ultima_data": ultima_data, "linhas": linhas}
 
     def listar_concursos(self, loteria_id, limite=200):
-        rows = self._conn.execute(
-            "SELECT NumeroConcurso, DataSorteio, DezenasKey FROM Concursos "
-            "WHERE LoteriaId = ? ORDER BY NumeroConcurso DESC LIMIT ?",
-            (loteria_id, limite),
-        ).fetchall()
-        return [dict(r) for r in rows]
+        dados = self._get_concursos(loteria_id)
+        return sorted(dados, key=lambda x: x["NumeroConcurso"], reverse=True)[:limite]
 
     def ultimo_concurso(self, loteria_id):
-        row = self._conn.execute(
-            "SELECT NumeroConcurso, DataSorteio, DezenasKey FROM Concursos "
-            "WHERE LoteriaId = ? ORDER BY NumeroConcurso DESC LIMIT 1",
-            (loteria_id,),
-        ).fetchone()
-        return dict(row) if row else None
+        dados = self._get_concursos(loteria_id)
+        return dados[-1] if dados else None
+
+    def atraso_por_concurso(self, loteria_id, numero_concurso):
+        """Retorna {dezena: atraso} para as dezenas do concurso, calculado
+        no momento daquele sorteio.
+
+        REGRA FINAL:
+        - Caso geral: atraso = numero_concurso - ultima_aparicao_anterior.
+          Ex.: dezena saiu no 3049 e voltou no 3057 -> 3057 - 3049 = 8.
+        - Repetição imediata: se a dezena saiu no concurso imediatamente
+          anterior (diferença = 1), o atraso é 0 (ela saiu no último concurso).
+        """
+        dados = self._get_concursos(loteria_id)
+        if not dados:
+            return None
+        alvo = None
+        for r in dados:
+            if r["NumeroConcurso"] == numero_concurso:
+                alvo = r
+                break
+        if alvo is None:
+            return None
+        dezenas_alvo = [int(d) for d in alvo["DezenasKey"].split("-")]
+        ultima = {}
+        concursos_antes = 0
+        for r in dados:
+            if r["NumeroConcurso"] >= numero_concurso:
+                break
+            concursos_antes += 1
+            for d in r["DezenasKey"].split("-"):
+                ultima[int(d)] = r["NumeroConcurso"]
+        out = {}
+        for d in dezenas_alvo:
+            if d in ultima:
+                diff = numero_concurso - ultima[d]
+                out[d] = 0 if diff == 1 else diff
+            else:
+                out[d] = concursos_antes
+        return out
 
     def estatisticas(self, loteria_id):
-        rows = self._conn.execute(
-            "SELECT DezenasKey FROM Concursos WHERE LoteriaId = ?",
-            (loteria_id,),
-        ).fetchall()
-        if not rows:
+        dados = self._get_concursos(loteria_id)
+        if not dados:
             return None
-        total = len(rows)
+        total = len(dados)
         contador = Counter()
-        for r in rows:
+        for r in dados:
             for d in r["DezenasKey"].split("-"):
                 contador[int(d)] += 1
         pares = sorted(contador.items(), key=lambda x: (-x[1], x[0]))
@@ -372,18 +463,14 @@ class Database:
         }
 
     def atraso_dezenas(self, loteria_id, min_num, max_num):
-        rows = self._conn.execute(
-            "SELECT NumeroConcurso, DataSorteio, DezenasKey FROM Concursos "
-            "WHERE LoteriaId = ? ORDER BY NumeroConcurso ASC",
-            (loteria_id,),
-        ).fetchall()
-        if not rows:
+        dados = self._get_concursos(loteria_id)
+        if not dados:
             return None
-        total = len(rows)
-        ultimo_concurso = rows[-1]["NumeroConcurso"]
-        ultima_data = rows[-1]["DataSorteio"]
+        total = len(dados)
+        ultimo_concurso = dados[-1]["NumeroConcurso"]
+        ultima_data = dados[-1]["DataSorteio"]
         ultima_aparicao = {}
-        for r in rows:
+        for r in dados:
             for d in r["DezenasKey"].split("-"):
                 ultima_aparicao[int(d)] = (r["NumeroConcurso"], r["DataSorteio"])
         linhas = []
@@ -400,14 +487,31 @@ class Database:
         return {"total": total, "ultimo_concurso": ultimo_concurso,
                 "ultima_data": ultima_data, "linhas": linhas}
 
+    def atraso_dezenas_especificas(self, loteria_id, dezenas):
+        """Retorna {dezena: atraso} apenas para as dezenas informadas, no momento atual."""
+        dezenas = sorted(int(d) for d in dezenas)
+        dados = self._get_concursos(loteria_id)
+        if not dados:
+            return {d: 0 for d in dezenas}
+        ultimo = dados[-1]["NumeroConcurso"]
+        total = len(dados)
+        ultima = {}
+        for r in dados:
+            for d in r["DezenasKey"].split("-"):
+                ultima[int(d)] = r["NumeroConcurso"]
+        out = {}
+        for d in dezenas:
+            if d in ultima:
+                out[d] = ultimo - ultima[d]
+            else:
+                out[d] = total
+        return out
+
     def similaridade(self, loteria_id, dezenas):
         aposta = set(int(d) for d in dezenas)
-        rows = self._conn.execute(
-            "SELECT NumeroConcurso, DataSorteio, DezenasKey FROM Concursos WHERE LoteriaId = ?",
-            (loteria_id,),
-        ).fetchall()
+        dados = self._get_concursos(loteria_id)
         resultados = []
-        for r in rows:
+        for r in dados:
             conc = set(int(d) for d in r["DezenasKey"].split("-"))
             acertadas = sorted(aposta & conc)
             resultados.append({
@@ -437,17 +541,14 @@ class Database:
         mn, mx = lot["MinNumero"], lot["MaxNumero"]
         todas = list(range(mn, mx + 1))
 
-        rows = self._conn.execute(
-            "SELECT DezenasKey FROM Concursos WHERE LoteriaId = ?",
-            (loteria_id,),
-        ).fetchall()
-        sorteadas = {r["DezenasKey"] for r in rows}
+        dados = self._get_concursos(loteria_id)
+        sorteadas = {r["DezenasKey"] for r in dados}
 
         freq = {d: {"vezes": 0, "classe": "morno"} for d in todas}
         quentes, mornas, frias = [], [], []
-        if rows:
+        if dados:
             contador = Counter()
-            for r in rows:
+            for r in dados:
                 for d in r["DezenasKey"].split("-"):
                     contador[int(d)] += 1
             pares = sorted(contador.items(), key=lambda x: (-x[1], x[0]))
@@ -489,7 +590,7 @@ class Database:
 
         def montar_jogo():
             """Monta um jogo seguindo a estratégia (sem filtros rígidos)."""
-            if estrategia == "puro" or not rows:
+            if estrategia == "puro" or not dados:
                 return sorted(random.sample(todas, qtd))
             if estrategia == "ponderado":
                 pesos = [max(freq[d]["vezes"], 1) for d in todas]
@@ -600,25 +701,34 @@ class Database:
             (loteria_id, key),
         ).fetchone()["c"]
         hoje = datetime.now().date().isoformat()
+        atrasos = self.atraso_dezenas_especificas(loteria_id, dezenas)
+        snapshot = " · ".join(f"{d:02d}:{atrasos[d]}" for d in sorted(int(x) for x in dezenas))
         try:
             self._conn.execute(
-                "INSERT INTO Jogos (LoteriaId, DataRegistro, DezenasKey, Observacao) "
-                "VALUES (?,?,?,?)",
-                (loteria_id, hoje, key, observacao),
+                "INSERT INTO Jogos (LoteriaId, DataRegistro, DezenasKey, Observacao, AtrasoSnapshot) "
+                "VALUES (?,?,?,?,?)",
+                (loteria_id, hoje, key, observacao, snapshot),
             )
             self._conn.commit()
-            return True, "Jogo gravado com sucesso!", dup > 0
+            return True, "Jogo gravado com sucesso!", dup > 0, snapshot
         except sqlite3.Error as e:
             self._conn.rollback()
-            return False, f"Erro ao gravar: {e}", False
+            return False, f"Erro ao gravar: {e}", False, ""
 
     def listar_jogos(self, loteria_id, limite=300):
         rows = self._conn.execute(
-            "SELECT Id, DataRegistro, DezenasKey, Observacao FROM Jogos "
+            "SELECT Id, DataRegistro, DezenasKey, Observacao, AtrasoSnapshot FROM Jogos "
             "WHERE LoteriaId = ? ORDER BY DataRegistro DESC, Id DESC LIMIT ?",
             (loteria_id, limite),
         ).fetchall()
         return [dict(r) for r in rows]
+
+    def obter_snapshot_jogo(self, jogo_id):
+        row = self._conn.execute(
+            "SELECT DezenasKey, AtrasoSnapshot FROM Jogos WHERE Id = ?",
+            (jogo_id,),
+        ).fetchone()
+        return dict(row) if row else None
 
     def status_jogos(self, loteria_id, chaves):
         if not chaves:
@@ -650,6 +760,7 @@ class App:
         self.db = Database()
         self.loterias = self.db.listar_loterias()
         self.lot = self.loterias[0]
+        self._editando_concurso = None
 
         self._montar_ui()
         self._atualizar_historico()
@@ -718,7 +829,6 @@ class App:
                                corner_radius=8)
             ent.pack(side="left", padx=4)
             entradas.append(ent)
-        # Auto-avanço: ao completar 2 dígitos, pula para o próximo campo
         for idx, ent in enumerate(entradas):
             prox = entradas[idx + 1] if idx + 1 < len(entradas) else None
             ent.bind("<KeyRelease>", lambda e, p=prox: self._auto_avancar(e, p))
@@ -729,6 +839,19 @@ class App:
             return
         if len(evento.widget.get().strip()) >= 2:
             proximo.focus_set()
+
+    def _mascara_data(self, evento):
+        """Aplica máscara dd/mm/aaaa no campo de data."""
+        texto = evento.widget.get()
+        digitos = "".join(ch for ch in texto if ch.isdigit())[:8]
+        novo = ""
+        for i, ch in enumerate(digitos):
+            if i in (2, 4):
+                novo += "/"
+            novo += ch
+        if novo != texto:
+            evento.widget.delete(0, "end")
+            evento.widget.insert(0, novo)
 
     def _montar_cadastro(self):
         tab = self.ab.tab("Cadastrar Sorteio")
@@ -748,6 +871,7 @@ class App:
                      font=ctk.CTkFont(size=13)).pack(side="left", padx=(28, 8))
         self.ent_data = ctk.CTkEntry(l1, width=130, corner_radius=8)
         self.ent_data.pack(side="left")
+        self.ent_data.bind("<KeyRelease>", self._mascara_data)
 
         ctk.CTkLabel(box, text="Dezenas sorteadas:",
                      font=ctk.CTkFont(size=13)).pack(anchor="w", padx=20, pady=(14, 4))
@@ -809,7 +933,9 @@ class App:
     def _montar_historico(self):
         tab = self.ab.tab("Histórico")
         self.tbl_historico = TabelaCTk(tab, ("Concurso", "Data", "Dezenas"),
-                                       (110, 130, 520), alinhamentos=("center", "center", "w"))
+                                       (110, 130, 520), alinhamentos=("center", "center", "w"),
+                                       btn_texto="📊 Atraso", btn_comando=self._ver_atraso_concurso,
+                                       btn2_texto="✏️ Alterar", btn2_comando=self._alterar_concurso)
         self.tbl_historico.pack(fill="both", expand=True, padx=14, pady=14)
 
     def _montar_estatisticas(self):
@@ -942,8 +1068,8 @@ class App:
                      font=ctk.CTkFont(size=15, weight="bold")).pack(anchor="w", padx=20, pady=(16, 2))
         ctk.CTkLabel(box,
                      text="Grave as suas apostas e confira cada jogo contra o ÚLTIMO sorteio cadastrado. "
-                          "O status e os acertos atualizam sozinhos ao salvar/importar concursos — "
-                          "use o botão Atualizar para conferir manualmente a qualquer momento.",
+                          "O botão 📊 Atraso mostra quanto cada dezena estava atrasada no momento "
+                          "em que o jogo foi gravado.",
                      font=ctk.CTkFont(size=12), text_color=CORES["texto2"],
                      wraplength=940).pack(anchor="w", padx=20, pady=(0, 10))
 
@@ -976,15 +1102,18 @@ class App:
         self.lbl_jogos.pack(anchor="w", padx=16, pady=(0, 6))
         self.tbl_jogos = TabelaCTk(tab, ("Data", "Jogo", "Status", "Acertos no último sorteio",
                                          "Observação"),
-                                   (90, 260, 200, 190, 170),
+                                   (80, 230, 170, 120, 100),
                                    alinhamentos=("center", "w", "w", "center", "w"),
-                                   btn_texto="🗑 Excluir", btn_comando=self._excluir_jogo)
+                                   btn_texto="📊 Atraso", btn_comando=self._ver_atraso_jogo,
+                                   btn2_texto="🗑 Excluir", btn2_comando=self._excluir_jogo)
         self.tbl_jogos.pack(fill="both", expand=True, padx=14, pady=(0, 14))
 
     # ---------- Ações ----------
     def _trocar_loteria(self, escolha=None):
         nome = escolha or self.cmb.get()
         self.lot = next(l for l in self.loterias if l["Nome"] == nome)
+        self._editando_concurso = None
+        self.ent_num.configure(state="normal")
         self.ent_dezenas = self._grade(self.box_dezenas)
         self.ent_consulta = self._grade(self.box_consulta)
         self.ent_alerta = self._grade(self.box_alerta)
@@ -1043,13 +1172,18 @@ class App:
         if not all(mn <= d <= mx for d in dezenas):
             messagebox.showerror("Erro", f"As dezenas devem estar entre {mn} e {mx}.")
             return
-        ok, msg = self.db.salvar_concurso(self.lot["Id"], numero, data, dezenas)
+        if self._editando_concurso is not None:
+            ok, msg = self.db.update_concurso(self.lot["Id"], self._editando_concurso, data, dezenas)
+        else:
+            ok, msg = self.db.salvar_concurso(self.lot["Id"], numero, data, dezenas)
         if ok:
             messagebox.showinfo("Sucesso", msg)
             for e in self.ent_dezenas:
                 e.delete(0, "end")
             self.ent_num.delete(0, "end")
             self.ent_data.delete(0, "end")
+            self.ent_num.configure(state="normal")
+            self._editando_concurso = None
             self.ent_num.focus_set()
             self._atualizar_historico()
             self._atualizar_estatisticas()
@@ -1149,7 +1283,42 @@ class App:
         self.tbl_historico.limpar()
         for r in self.db.listar_concursos(self.lot["Id"]):
             self.tbl_historico.adicionar(
-                (r["NumeroConcurso"], self._fmt(r["DataSorteio"]), r["DezenasKey"]))
+                (r["NumeroConcurso"], self._fmt(r["DataSorteio"]), r["DezenasKey"]),
+                btn_dado=r["NumeroConcurso"], btn2_dado=r["NumeroConcurso"])
+
+    def _ver_atraso_concurso(self, numero):
+        atrasos = self.db.atraso_por_concurso(self.lot["Id"], numero)
+        if not atrasos:
+            messagebox.showinfo("Atraso", "Sem dados para este concurso.")
+            return
+        linhas = " · ".join(f"{d:02d}:{atrasos[d]}" for d in sorted(atrasos))
+        messagebox.showinfo(
+            f"Atraso no concurso {numero}",
+            f"Atraso de cada dezena até este sorteio:\n\n{linhas}\n\n"
+            f"(Valor = diferença entre este concurso e a última aparição anterior da dezena; "
+            f"0 se a dezena saiu no concurso imediatamente anterior)")
+
+    def _alterar_concurso(self, numero):
+        c = self.db.obter_concurso(self.lot["Id"], numero)
+        if not c:
+            messagebox.showerror("Erro", "Concurso não encontrado.")
+            return
+        self._editando_concurso = numero
+        self.ent_num.configure(state="normal")
+        self.ent_num.delete(0, "end")
+        self.ent_num.insert(0, str(numero))
+        self.ent_num.configure(state="readonly")
+        self.ent_data.delete(0, "end")
+        self.ent_data.insert(0, self._fmt(c["DataSorteio"]))
+        dezs = c["DezenasKey"].split("-")
+        for e, d in zip(self.ent_dezenas, dezs):
+            e.delete(0, "end")
+            e.insert(0, d)
+        self.ab.set("Cadastrar Sorteio")
+        messagebox.showinfo(
+            "Editar sorteio",
+            f"Editando o concurso {numero}. Ajuste os dados e clique em Salvar Sorteio.\n"
+            f"(O número do concurso fica travado para não criar duplicado.)")
 
     def _atualizar_estatisticas(self):
         self.tbl_freq.limpar()
@@ -1261,7 +1430,7 @@ class App:
             messagebox.showerror("Erro", f"Os números devem estar entre {mn} e {mx}.")
             return
         observacao = self.ent_jogo_obs.get().strip()
-        ok, msg, duplicado = self.db.salvar_jogo(self.lot["Id"], dezenas, observacao)
+        ok, msg, duplicado, snapshot = self.db.salvar_jogo(self.lot["Id"], dezenas, observacao)
         if not ok:
             messagebox.showerror("Erro", msg)
             return
@@ -1272,11 +1441,27 @@ class App:
         if res:
             texto += (f"\n\nℹ️ Atenção: essa sequência JÁ foi sorteada no concurso "
                       f"{res[0]['NumeroConcurso']}.")
+        if snapshot:
+            texto += (f"\n\n📊 Atraso de cada dezena no momento da gravação:\n"
+                      f"{snapshot}\n\n(Valor = concursos desde a última aparição)")
         messagebox.showinfo("Jogo gravado", texto)
         for e in self.ent_jogos:
             e.delete(0, "end")
         self.ent_jogo_obs.delete(0, "end")
         self._atualizar_jogos()
+
+    def _ver_atraso_jogo(self, jogo_id):
+        j = self.db.obter_snapshot_jogo(jogo_id)
+        if not j or not j.get("AtrasoSnapshot"):
+            messagebox.showinfo(
+                "Atraso na gravação",
+                "Este jogo não possui registro de atraso (foi gravado antes desta versão).")
+            return
+        messagebox.showinfo(
+            "Atraso na gravação",
+            f"Jogo: {j['DezenasKey']}\n\n"
+            f"Atraso de cada dezena no momento da gravação:\n{j['AtrasoSnapshot']}\n\n"
+            f"(Valor = concursos desde a última aparição)")
 
     def _excluir_jogo(self, jogo_id):
         if not messagebox.askyesno("Excluir jogo", "Deseja excluir este jogo gravado?"):
@@ -1326,7 +1511,7 @@ class App:
             obs = j["Observacao"] or "—"
             self.tbl_jogos.adicionar(
                 (self._fmt(j["DataRegistro"]), j["DezenasKey"], status, txt_ac, obs),
-                fg=cor, btn_dado=j["Id"])
+                fg=cor, btn_dado=j["Id"], btn2_dado=j["Id"])
 
     def _sair(self):
         self.db.fechar()
