@@ -1,9 +1,0 @@
-fastapi
-uvicorn[standard]
-sqlalchemy
-pyodbc
-pydantic-settings
-email-validator
-bcrypt
-PyJWT
-python-dotenv

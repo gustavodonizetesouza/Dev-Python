@@ -1,0 +1,7 @@
+pip install pdfplumber
+
+pip install customtkinter pdfplumber
+
+pip install brazilfiscalreport
+
+pip install customtkinter pdfplumber brazilfiscalreport
