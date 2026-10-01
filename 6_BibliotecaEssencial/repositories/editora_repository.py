@@ -1,3 +1,9 @@
+# ============================================
+# repositories/editora_repository.py
+# CRUD da tabela Editoras.
+# Os métodos insert/update recebem um dict, no padrão
+# usado pela tela CRUD genérica (views/crud_view.py).
+# ============================================
 from database import Database
 
 
@@ -14,22 +20,21 @@ class EditoraRepository:
         return Database.query("SELECT * FROM Editoras WHERE codigo = ?", (codigo,))
 
     @staticmethod
-    def insert(editora):
+    def insert(dados: dict):
         return Database.execute(
             "INSERT INTO Editoras (editora, data_cadastro) VALUES (?, GETDATE())",
-            (editora,),
+            (dados["editora"],),
         )
 
     @staticmethod
-    def update(codigo, editora):
+    def update(codigo, dados: dict):
         return Database.execute(
             "UPDATE Editoras SET editora = ?, data_alteracao = GETDATE() WHERE codigo = ?",
-            (editora, codigo),
+            (dados["editora"], codigo),
         )
 
     @staticmethod
     def delete(codigo):
-        # Soft delete: marca como excluído sem apagar o registro
         return Database.execute(
             "UPDATE Editoras SET deletado = 'S', data_exclusao = GETDATE() WHERE codigo = ?",
             (codigo,),

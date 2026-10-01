@@ -6,10 +6,11 @@
 # cadastro, edição e exclusão de qualquer entidade.
 #
 # Ajustes desta versão:
-#   - Grid moderno (tema clam, cabeçalho destacado, linhas altas)
-#   - CORES ALTERNADAS nas linhas (branco/cinza claro)
-#   - Coluna "codigo" estreita e centralizada por padrão
-#   - Larguras customizáveis via parâmetro column_widths
+#   - Grid moderno (tema clam, cabeçalho destacado, zebra)
+#   - Coluna "codigo" estreita e centralizada
+#   - Formulário menor e CENTRALIZADO na tela
+#   - Formulário PRESO ao sistema (transient + lift + focus):
+#     não fica mais "solto" ao sair do foco ou dar Tab
 # ============================================
 import customtkinter as ctk
 from tkinter import ttk, messagebox
@@ -22,9 +23,8 @@ class CrudView(ctk.CTkFrame):
         super().__init__(master, fg_color="transparent")
         self.repository = repository
         self.title = title
-        self.fields = fields                    # configuração dos campos do formulário
-        self.display_columns = display_columns  # colunas exibidas na tabela
-        # larguras customizadas (opcional)
+        self.fields = fields
+        self.display_columns = display_columns
         self.column_widths = column_widths or {}
 
         self.grid_columnconfigure(0, weight=1)
@@ -84,14 +84,11 @@ class CrudView(ctk.CTkFrame):
         self.tree = ttk.Treeview(
             table_frame, columns=cols, show="headings", selectmode="browse")
 
-        # Monta cabeçalhos e larguras das colunas
         for key, label in display_columns:
             self.tree.heading(key, text=label)
-            # Largura: usa a customizada; senão, "codigo" fica estreito (70) e o resto 160
             largura = self.column_widths.get(key)
             if largura is None:
                 largura = 70 if key == "codigo" else 160
-            # "codigo" centralizado; demais colunas alinhadas à esquerda
             ancoragem = "center" if key == "codigo" else "w"
             self.tree.column(key, width=largura, minwidth=60,
                              anchor=ancoragem, stretch=True)
@@ -100,17 +97,14 @@ class CrudView(ctk.CTkFrame):
         self.tree.tag_configure("linha_par", background="#F1F5F9")
         self.tree.tag_configure("linha_impar", background="#FFFFFF")
 
-        # Barra de rolagem vertical
         vsb = ttk.Scrollbar(table_frame, orient="vertical",
                             command=self.tree.yview)
         self.tree.configure(yscrollcommand=vsb.set)
         self.tree.grid(row=0, column=0, sticky="nsew")
         vsb.grid(row=0, column=1, sticky="ns")
 
-        # Duplo clique na linha abre a edição
         self.tree.bind("<Double-1>", lambda e: self._editar())
 
-        # Carrega os dados ao abrir a tela
         self._carregar()
 
     # ---------- Carregar dados ----------
@@ -175,11 +169,26 @@ class CrudView(ctk.CTkFrame):
 
     # ---------- Formulário de cadastro/edição ----------
     def _abrir_formulario(self, codigo):
-        """Abre a janela de formulário para novo ou edição."""
+        """Abre a janela de formulário (menor, centralizada e presa ao sistema)."""
+        largura, altura = 420, 380
+
         janela = ctk.CTkToplevel(self)
         janela.title(f"{'Editar' if codigo else 'Novo'} - {self.title}")
-        janela.geometry("420x520")
-        janela.grab_set()
+
+        # Centraliza a janela do formulário na tela
+        x = (janela.winfo_screenwidth() - largura) // 2
+        y = (janela.winfo_screenheight() - altura) // 2
+        janela.geometry(f"{largura}x{altura}+{x}+{y}")
+        janela.resizable(False, False)
+
+        # ===== Prende a janela ao sistema =====
+        # transient: fica sempre acima da janela principal, some junto
+        # com ela e não vira janela separada na barra de tarefas
+        janela.transient(self)
+        janela.lift()
+        janela.focus_force()
+        janela.grab_set()          # modal: bloqueia a janela principal
+        janela.after(50, janela.focus_force)  # reforça o foco após renderizar
 
         entradas = {}
         valores_atuais = {}
@@ -189,17 +198,15 @@ class CrudView(ctk.CTkFrame):
                 # pula o codigo (coluna 0)
                 valores_atuais[f["name"]] = row[i + 1]
 
-        container = ctk.CTkScrollableFrame(janela, width=380, height=440)
+        container = ctk.CTkScrollableFrame(janela, width=380, height=290)
         container.pack(fill="both", expand=True, padx=15, pady=15)
 
-        # Monta os campos do formulário conforme a configuração
         for f in self.fields:
             ctk.CTkLabel(container, text=f["label"]).pack(
                 anchor="w", pady=(8, 2))
             tipo = f.get("type", "text")
 
             if tipo == "select":
-                # Campo de seleção (combobox) - ex.: gênero, autor, editora
                 opcoes = f.get("options_loader", lambda: [])()
                 nomes = [o[1] for o in opcoes]
                 combo = ctk.CTkOptionMenu(container, values=nomes)
@@ -212,7 +219,6 @@ class CrudView(ctk.CTkFrame):
                             break
                 entradas[f["name"]] = (combo, opcoes)
             else:
-                # Campo de texto
                 entry = ctk.CTkEntry(container)
                 entry.pack(fill="x")
                 atual = valores_atuais.get(f["name"])
