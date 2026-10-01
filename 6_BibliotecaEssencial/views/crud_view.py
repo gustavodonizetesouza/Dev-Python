@@ -1,16 +1,6 @@
 # ============================================
 # views/crud_view.py
 # Tela CRUD genérica.
-# Recebe um repositório, os campos do formulário e as colunas
-# da tabela, montando automaticamente a tela de listagem,
-# cadastro, edição e exclusão de qualquer entidade.
-#
-# Ajustes desta versão:
-#   - Grid moderno (tema clam, cabeçalho destacado, zebra)
-#   - Coluna "codigo" estreita e centralizada
-#   - Formulário menor e CENTRALIZADO na tela
-#   - Formulário PRESO ao sistema (transient + lift + focus):
-#     não fica mais "solto" ao sair do foco ou dar Tab
 # ============================================
 import customtkinter as ctk
 from tkinter import ttk, messagebox
@@ -30,11 +20,9 @@ class CrudView(ctk.CTkFrame):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(2, weight=1)
 
-        # Título da tela
         ctk.CTkLabel(self, text=title, font=("Arial", 22, "bold")).grid(
             row=0, column=0, sticky="w", padx=15, pady=(15, 5))
 
-        # ===== Barra de ferramentas (botões) =====
         toolbar = ctk.CTkFrame(self, fg_color="transparent")
         toolbar.grid(row=1, column=0, sticky="ew", padx=15)
         ctk.CTkButton(toolbar, text="➕ Novo", width=90,
@@ -46,7 +34,6 @@ class CrudView(ctk.CTkFrame):
         ctk.CTkButton(toolbar, text="🔄 Atualizar", width=100,
                       command=self._carregar).pack(side="left", padx=5)
 
-        # ===== Estilo moderno da tabela =====
         self.estilo = ttk.Style()
         if "clam" in self.estilo.theme_names():
             self.estilo.theme_use("clam")
@@ -73,7 +60,6 @@ class CrudView(ctk.CTkFrame):
             foreground=[("selected", "#FFFFFF")],
         )
 
-        # ===== Tabela de listagem =====
         table_frame = ctk.CTkFrame(self)
         table_frame.grid(row=2, column=0, sticky="nsew",
                          padx=15, pady=(10, 15))
@@ -93,7 +79,6 @@ class CrudView(ctk.CTkFrame):
             self.tree.column(key, width=largura, minwidth=60,
                              anchor=ancoragem, stretch=True)
 
-        # Cores alternadas nas linhas (efeito zebra)
         self.tree.tag_configure("linha_par", background="#F1F5F9")
         self.tree.tag_configure("linha_impar", background="#FFFFFF")
 
@@ -136,6 +121,7 @@ class CrudView(ctk.CTkFrame):
         if not sel:
             messagebox.showwarning("Aviso", "Selecione um registro na tabela.")
             return None
+        # [0] é ESSENCIAL: pega só o código, não a linha inteira (evita erro TVP)
         return self.tree.item(sel[0], "values")[0]
 
     # ---------- Ações: novo / editar / excluir ----------
@@ -151,7 +137,8 @@ class CrudView(ctk.CTkFrame):
             if not row:
                 messagebox.showwarning("Aviso", "Registro não encontrado.")
                 return
-            self._abrir_formulario(row[0])
+            # CORREÇÃO: passa o CÓDIGO, não o row[0] (evita erro TVP)
+            self._abrir_formulario(codigo)
         except Exception as e:
             messagebox.showerror("Erro", f"Falha ao buscar registro:\n{e}")
 
@@ -167,6 +154,24 @@ class CrudView(ctk.CTkFrame):
         except Exception as e:
             messagebox.showerror("Erro", f"Falha ao excluir:\n{e}")
 
+    # ---------- Caixa alta ao vivo ----------
+    @staticmethod
+    def _maiusculas_ao_digitar(evento):
+        """Converte o texto do campo para MAIÚSCULAS enquanto digita."""
+        entry = evento.widget
+        try:
+            pos = entry.index("insert")
+        except Exception:
+            pos = len(entry.get())
+        texto = entry.get()
+        if texto != texto.upper():
+            entry.delete(0, "end")
+            entry.insert(0, texto.upper())
+            try:
+                entry.icursor(min(pos, len(entry.get())))
+            except Exception:
+                pass
+
     # ---------- Formulário de cadastro/edição ----------
     def _abrir_formulario(self, codigo):
         """Abre a janela de formulário (menor, centralizada e presa ao sistema)."""
@@ -175,20 +180,17 @@ class CrudView(ctk.CTkFrame):
         janela = ctk.CTkToplevel(self)
         janela.title(f"{'Editar' if codigo else 'Novo'} - {self.title}")
 
-        # Centraliza a janela do formulário na tela
         x = (janela.winfo_screenwidth() - largura) // 2
         y = (janela.winfo_screenheight() - altura) // 2
         janela.geometry(f"{largura}x{altura}+{x}+{y}")
         janela.resizable(False, False)
 
-        # ===== Prende a janela ao sistema =====
-        # transient: fica sempre acima da janela principal, some junto
-        # com ela e não vira janela separada na barra de tarefas
+        # Prende a janela ao sistema (modal)
         janela.transient(self)
         janela.lift()
         janela.focus_force()
-        janela.grab_set()          # modal: bloqueia a janela principal
-        janela.after(50, janela.focus_force)  # reforça o foco após renderizar
+        janela.grab_set()
+        janela.after(50, janela.focus_force)
 
         entradas = {}
         valores_atuais = {}
@@ -223,7 +225,11 @@ class CrudView(ctk.CTkFrame):
                 entry.pack(fill="x")
                 atual = valores_atuais.get(f["name"])
                 if atual is not None:
-                    entry.insert(0, str(atual))
+                    texto = str(atual)
+                    if tipo != "int":
+                        texto = texto.upper()
+                    entry.insert(0, texto)
+                entry.bind("<KeyRelease>", self._maiusculas_ao_digitar)
                 entradas[f["name"]] = entry
 
         def salvar():
@@ -243,7 +249,7 @@ class CrudView(ctk.CTkFrame):
                     dados[nome] = int(val) if val else None
                 else:
                     val = entradas[nome].get().strip()
-                    dados[nome] = val if val else None
+                    dados[nome] = val.upper() if val else None
 
             try:
                 if codigo:

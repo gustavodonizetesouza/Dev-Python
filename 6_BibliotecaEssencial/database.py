@@ -8,7 +8,7 @@
 #   - Normalização de parâmetros: se o chamador passar
 #     uma string/valor solto, transforma automaticamente
 #     em tupla válida para o pyodbc (evita o erro
-#     "A TVP's rows must be Sequence objects").
+#     "A TVP's rows must be Sequence objects" na edição).
 # ============================================
 import pyodbc
 from config import Config
@@ -34,14 +34,17 @@ class Database:
 
     @staticmethod
     def _normalizar_params(params):
-        """Garante que os parâmetros sejam uma tupla aceita pelo pyodbc.
+        """Garante que os parâmetros sejam aceitos pelo pyodbc.
 
-        - None            -> () (sem parâmetros)
-        - tupla / lista   -> tupla (usa como está)
-        - string/número   -> vira um único parâmetro (valor,)
+        - None                -> ()      (sem parâmetros)
+        - dict                -> dict    (parâmetros nomeados)
+        - tupla / lista       -> tupla   (evita interpretação como TVP)
+        - string / número     -> (valor,) (um único parâmetro)
         """
         if params is None:
             return ()
+        if isinstance(params, dict):
+            return params
         if isinstance(params, (tuple, list)):
             return tuple(params)
         return (params,)
