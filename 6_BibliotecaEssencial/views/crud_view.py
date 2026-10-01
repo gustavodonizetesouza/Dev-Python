@@ -4,6 +4,12 @@
 # Recebe um repositório, os campos do formulário e as colunas
 # da tabela, montando automaticamente a tela de listagem,
 # cadastro, edição e exclusão de qualquer entidade.
+#
+# Ajustes desta versão:
+#   - Grid moderno (tema clam, cabeçalho destacado, linhas altas)
+#   - CORES ALTERNADAS nas linhas (branco/cinza claro)
+#   - Coluna "codigo" estreita e centralizada por padrão
+#   - Larguras customizáveis via parâmetro column_widths
 # ============================================
 import customtkinter as ctk
 from tkinter import ttk, messagebox
@@ -11,12 +17,15 @@ from datetime import datetime
 
 
 class CrudView(ctk.CTkFrame):
-    def __init__(self, master, repository, title, fields, display_columns):
+    def __init__(self, master, repository, title, fields, display_columns,
+                 column_widths=None):
         super().__init__(master, fg_color="transparent")
         self.repository = repository
         self.title = title
-        self.fields = fields              # configuração dos campos do formulário
+        self.fields = fields                    # configuração dos campos do formulário
         self.display_columns = display_columns  # colunas exibidas na tabela
+        # larguras customizadas (opcional)
+        self.column_widths = column_widths or {}
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(2, weight=1)
@@ -37,6 +46,33 @@ class CrudView(ctk.CTkFrame):
         ctk.CTkButton(toolbar, text="🔄 Atualizar", width=100,
                       command=self._carregar).pack(side="left", padx=5)
 
+        # ===== Estilo moderno da tabela =====
+        self.estilo = ttk.Style()
+        if "clam" in self.estilo.theme_names():
+            self.estilo.theme_use("clam")
+
+        self.estilo.configure(
+            "Treeview",
+            background="#FFFFFF",
+            fieldbackground="#FFFFFF",
+            foreground="#1F2937",
+            borderwidth=0,
+            rowheight=32,
+            font=("Segoe UI", 12),
+        )
+        self.estilo.configure(
+            "Treeview.Heading",
+            background="#E2E8F0",
+            foreground="#0F172A",
+            borderwidth=0,
+            font=("Segoe UI", 12, "bold"),
+        )
+        self.estilo.map(
+            "Treeview",
+            background=[("selected", "#2563EB")],
+            foreground=[("selected", "#FFFFFF")],
+        )
+
         # ===== Tabela de listagem =====
         table_frame = ctk.CTkFrame(self)
         table_frame.grid(row=2, column=0, sticky="nsew",
@@ -47,9 +83,22 @@ class CrudView(ctk.CTkFrame):
         cols = [key for key, _ in display_columns]
         self.tree = ttk.Treeview(
             table_frame, columns=cols, show="headings", selectmode="browse")
+
+        # Monta cabeçalhos e larguras das colunas
         for key, label in display_columns:
             self.tree.heading(key, text=label)
-            self.tree.column(key, width=160, anchor="w")
+            # Largura: usa a customizada; senão, "codigo" fica estreito (70) e o resto 160
+            largura = self.column_widths.get(key)
+            if largura is None:
+                largura = 70 if key == "codigo" else 160
+            # "codigo" centralizado; demais colunas alinhadas à esquerda
+            ancoragem = "center" if key == "codigo" else "w"
+            self.tree.column(key, width=largura, minwidth=60,
+                             anchor=ancoragem, stretch=True)
+
+        # Cores alternadas nas linhas (efeito zebra)
+        self.tree.tag_configure("linha_par", background="#F1F5F9")
+        self.tree.tag_configure("linha_impar", background="#FFFFFF")
 
         # Barra de rolagem vertical
         vsb = ttk.Scrollbar(table_frame, orient="vertical",
@@ -70,10 +119,11 @@ class CrudView(ctk.CTkFrame):
         for item in self.tree.get_children():
             self.tree.delete(item)
         try:
-            for row in self.repository.list_all():
+            for indice, row in enumerate(self.repository.list_all()):
                 values = [self._format(row[i])
                           for i in range(len(self.display_columns))]
-                self.tree.insert("", "end", values=values)
+                tag = "linha_par" if indice % 2 == 0 else "linha_impar"
+                self.tree.insert("", "end", values=values, tags=(tag,))
         except Exception as e:
             messagebox.showerror("Erro", f"Falha ao carregar dados:\n{e}")
 

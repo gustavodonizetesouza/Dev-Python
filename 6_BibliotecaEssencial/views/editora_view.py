@@ -16,4 +16,9 @@ class EditoraView(CrudView):
                 ("editora", "Editora"),
                 ("data_cadastro", "Cadastro"),
             ],
+            column_widths={
+                "codigo": 60,          # bem estreita, como pedido
+                "editora": 320,
+                "data_cadastro": 130,
+            },
         )
