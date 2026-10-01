@@ -1,0 +1,6 @@
+pyodbc
+pandas
+openpyxl
+customtkinter
+matplotlib
+reportlab

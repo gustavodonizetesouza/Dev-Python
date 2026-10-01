@@ -1,0 +1,29 @@
+biblioteca_essencial/
+├── main.py                          # ponto de entrada
+├── config.py                        # configuração (lê do .env)
+├── database.py                      # gerenciador de conexão pyodbc
+├── .env                             # credenciais (não versionar!)
+├── requirements.txt                 # dependências do projeto
+│
+├── repositories/
+│   ├── __init__.py                  # marca a pasta como pacote Python
+│   ├── auth_repository.py           # login (autenticação de usuário) — aguardando tabela Usuarios
+│   ├── base_repository.py           # padrão genérico de CRUD
+│   ├── editora_repository.py        # CRUD Editoras ✅
+│   ├── autor_repository.py          # CRUD Autores ✅
+│   ├── genero_repository.py         # CRUD Gêneros ✅
+│   ├── biblioteca_repository.py     # CRUD Biblioteca (acervo) com JOINs ✅
+│   └── movimentacao_repository.py   # CRUD Movimentação ⏳ aguardando model
+│
+└── views/
+    ├── __init__.py                  # marca a pasta como pacote Python
+    ├── login_view.py                # tela de login — interface pronta, aguardando tabela Usuarios
+    ├── main_window.py               # janela principal + navegação ✅
+    ├── dashboard_view.py            # dashboard (placeholder — KPIs pendentes) ⏳
+    ├── crud_view.py                 # tela CRUD genérica (reutilizável) ✅
+    ├── editora_view.py              # tela CRUD Editoras ✅
+    ├── autor_view.py                # tela CRUD Autores ✅
+    ├── genero_view.py               # tela CRUD Gêneros ✅
+    ├── biblioteca_view.py           # tela CRUD Biblioteca (acervo) ✅
+    ├── movimentacao_view.py         # tela CRUD Movimentação ⏳ aguardando model
+    └── relatorios_view.py           # relatórios (placeholder — pendente) ⏳

@@ -1,0 +1,23 @@
+{
+  "queries": [
+    {
+      "nome": "Reinf",
+      "descricao": "Fiscal - Bruna",
+      "sql": "SELECT\nFT_FILIAL  AS 'Filial',\nFT_NFISCAL AS 'Doc. Fiscal',\nFT_CODISS  AS 'Cód. Serviço',\nFT_EMISSAO AS 'Data Emissão',\nFT_ENTRADA AS 'Data Entrada',\nE2_VENCTO  AS 'Vencimento',\nE2_VENCREA AS 'Vencto Real',\nE2_BAIXA   AS 'DT Baixa',\nFT_CLIEFOR AS 'Cli/Forn.',\nA2_CGC     AS 'CNPJ/CPF',\nFT_VALCONT AS 'Vlr Contábil',\nFT_BASEINS AS 'Base INSS',\nFT_ALIQINS AS 'Aliq. INSS',\nFT_VALINS  AS 'Valor INSS',\nD1_BASEISS AS 'Base ISS',\nD1_ALIQISS AS 'Aliquota ISS',\nD1_VALISS  AS 'Valor ISS',\nFT_BASEIRR AS 'Base IRRF',\nFT_ALIQIRR AS 'Aliq. IRRF',\nFT_VALIRR  AS 'Valor IRRF',\nFT_BRETPIS AS 'Base Pis',\nFT_BRETCOF AS 'Base Cofins',\nFT_BRETCSL AS 'Base CSLL',\nFT_VRETPIS AS 'Valor Pis',\nFT_VRETCOF AS 'Valor Cofins',\nFT_VRETCSL AS 'Valor CSLL'\nFROM SFT010 SFT WITH( nolock),\n\t SD1010 SD1 WITH (nolock),\n\t SE2010 SE2 WITH( nolock),\n\t SA2010 SA2 WITH( nolock)\nWHERE FT_ESPECIE = 'NFS'\nAND FT_ENTRADA BETWEEN {{DATA_INICIO}} AND {{DATA_FIM}}\nAND SE2.E2_TIPO = 'NF'\nAND SFT.FT_FILIAL IN ('01','02','04')\n\nAND SFT.FT_NFISCAL = SE2.E2_NUM\nAND SFT.FT_SERIE = SE2.E2_PREFIXO\nAND SFT.FT_CLIEFOR = SE2.E2_FORNECE\nAND SFT.FT_LOJA = SE2.E2_LOJA\n\nAND SFT.FT_CLIEFOR = SA2.A2_COD\nAND SFT.FT_LOJA =SA2.A2_LOJA\n\nAND SFT.FT_FILIAL = SD1.D1_FILIAL\nAND SFT.FT_LOJA = SD1.D1_LOJA\nAND SFT.FT_NFISCAL = SD1.D1_DOC\nAND SFT.FT_CLIEFOR = SD1.D1_FORNECE\nAND SFT.FT_ITEM = SD1.D1_ITEM\n\nAND SA2.D_E_L_E_T_ = ''\nAND SE2.D_E_L_E_T_ = ''\nAND SD1.D_E_L_E_T_ = ''\nAND SFT.D_E_L_E_T_ = ''\nORDER BY FT_NFISCAL",
+      "parametros": [
+        {
+          "nome": "DATA_INICIO",
+          "label": "Data Inicio",
+          "tipo": "data",
+          "formato": "aaaammdd"
+        },
+        {
+          "nome": "DATA_FIM",
+          "label": "Data Fim",
+          "tipo": "data",
+          "formato": "aaaammdd"
+        }
+      ]
+    }
+  ]
+}

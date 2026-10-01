@@ -1,0 +1,13 @@
+{
+  "queries": [
+    {
+      "nome": "Notas de Frete por Período",
+      "descricao": "Fretes digitados entre as datas informadas",
+      "sql": "SELECT\n\tF1_EMISSAO AS 'EMISSÃO',\n\tF1_DOC AS 'DOCUMENTO',\n\tF1_FORNECE AS 'FORNECEDOR',\n\tA2.A2_NOME AS 'NOME FORNECEDOR',\n\tF8_NFDIFRE AS 'DOCUMENTO FRETE',\n\tF8_TRANSP AS 'TRANSPORTADORA',\n\tA4.A2_NOME AS 'NOME TRANSPORTADORA',\n\tF8_DTDIGIT AS 'DATA DIGITAÇÃO'\nFROM SF8010 F8\nINNER JOIN SF1010 F1 ON F1.F1_DOC = F8.F8_NFORIG AND F1.D_E_L_E_T_ = ''\nINNER JOIN SA2010 A2 ON A2.A2_COD = F8.F8_FORNECE\nINNER JOIN SA2010 A4 ON A4.A2_COD = F8.F8_TRANSP\nWHERE F8_DTDIGIT BETWEEN '{{DATA_INICIO}}' AND '{{DATA_FIM}}'\n\tAND F8.D_E_L_E_T_ = ''",
+      "parametros": [
+        { "nome": "DATA_INICIO", "label": "Data Início", "tipo": "data", "formato": "aaaammdd" },
+        { "nome": "DATA_FIM",    "label": "Data Fim",    "tipo": "data", "formato": "aaaammdd" }
+      ]
+    }
+  ]
+}
