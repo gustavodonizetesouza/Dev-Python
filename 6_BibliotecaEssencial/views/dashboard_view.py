@@ -115,13 +115,13 @@ class DashboardView(ctk.CTkFrame):
         self._atualizar_card(self.card_livros,
                              "SELECT COUNT(*) FROM Biblioteca WHERE ISNULL(deletado,'')=''")
 
-        # Situação dos livros
+        # Situação dos livros (int: 1=Não Lido, 2=Em Leitura, 3=Concluído)
         self._atualizar_card(self.card_disponivel,
                              "SELECT COUNT(*) FROM Biblioteca "
-                             "WHERE situacao = 'Disponível' AND ISNULL(deletado,'')=''")
+                             "WHERE situacao = 1 AND ISNULL(deletado,'')=''")
         self._atualizar_card(self.card_lendo,
                              "SELECT COUNT(*) FROM Biblioteca "
-                             "WHERE situacao = 'Lendo' AND ISNULL(deletado,'')=''")
+                             "WHERE situacao = 2 AND ISNULL(deletado,'')=''")
         self._atualizar_card(self.card_emprestado,
                              "SELECT COUNT(*) FROM Biblioteca "
-                             "WHERE situacao = 'Emprestado' AND ISNULL(deletado,'')=''")
+                             "WHERE situacao = 3 AND ISNULL(deletado,'')=''")

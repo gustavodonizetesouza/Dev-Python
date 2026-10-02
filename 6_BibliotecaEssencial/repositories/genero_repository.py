@@ -1,3 +1,12 @@
+# ============================================
+# repositories/genero_repository.py
+# CRUD da tabela Generos.
+# Os métodos insert/update recebem um dict, no padrão
+# usado pela tela CRUD genérica (views/crud_view.py).
+#
+# Exclusão LÓGICA: preenche a coluna 'deletado' com '*'
+# (padrão do ASP.NET), ocultando o registro das listagens.
+# ============================================
 from database import Database
 
 
@@ -14,22 +23,22 @@ class GeneroRepository:
         return Database.query("SELECT * FROM Generos WHERE codigo = ?", (codigo,))
 
     @staticmethod
-    def insert(genero):
+    def insert(dados: dict):
         return Database.execute(
             "INSERT INTO Generos (genero, data_cadastro) VALUES (?, GETDATE())",
-            (genero,),
+            (dados["genero"],),
         )
 
     @staticmethod
-    def update(codigo, genero):
+    def update(codigo, dados: dict):
         return Database.execute(
             "UPDATE Generos SET genero = ?, data_alteracao = GETDATE() WHERE codigo = ?",
-            (genero, codigo),
+            (dados["genero"], codigo),
         )
 
     @staticmethod
     def delete(codigo):
         return Database.execute(
-            "UPDATE Generos SET deletado = 'S', data_exclusao = GETDATE() WHERE codigo = ?",
+            "UPDATE Generos SET deletado = '*', data_exclusao = GETDATE() WHERE codigo = ?",
             (codigo,),
         )

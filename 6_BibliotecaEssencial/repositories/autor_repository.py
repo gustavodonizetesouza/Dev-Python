@@ -1,3 +1,13 @@
+# ============================================
+# repositories/autor_repository.py
+# CRUD da tabela Autores.
+# Schema: codigo, nome_autor, data_cadastro, ...
+# Os métodos insert/update recebem um dict, no padrão
+# usado pela tela CRUD genérica (views/crud_view.py).
+#
+# Exclusão LÓGICA: preenche a coluna 'deletado' com '*'
+# (padrão do ASP.NET), ocultando o registro das listagens.
+# ============================================
 from database import Database
 
 
@@ -14,22 +24,22 @@ class AutorRepository:
         return Database.query("SELECT * FROM Autores WHERE codigo = ?", (codigo,))
 
     @staticmethod
-    def insert(nome_autor):
+    def insert(dados: dict):
         return Database.execute(
             "INSERT INTO Autores (nome_autor, data_cadastro) VALUES (?, GETDATE())",
-            (nome_autor,),
+            (dados["nome_autor"],),
         )
 
     @staticmethod
-    def update(codigo, nome_autor):
+    def update(codigo, dados: dict):
         return Database.execute(
             "UPDATE Autores SET nome_autor = ?, data_alteracao = GETDATE() WHERE codigo = ?",
-            (nome_autor, codigo),
+            (dados["nome_autor"], codigo),
         )
 
     @staticmethod
     def delete(codigo):
         return Database.execute(
-            "UPDATE Autores SET deletado = 'S', data_exclusao = GETDATE() WHERE codigo = ?",
+            "UPDATE Autores SET deletado = '*', data_exclusao = GETDATE() WHERE codigo = ?",
             (codigo,),
         )

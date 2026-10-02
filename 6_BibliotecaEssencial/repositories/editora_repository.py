@@ -3,6 +3,9 @@
 # CRUD da tabela Editoras.
 # Os métodos insert/update recebem um dict, no padrão
 # usado pela tela CRUD genérica (views/crud_view.py).
+#
+# Exclusão LÓGICA: preenche a coluna 'deletado' com '*'
+# (padrão do ASP.NET), ocultando o registro das listagens.
 # ============================================
 from database import Database
 
@@ -36,6 +39,6 @@ class EditoraRepository:
     @staticmethod
     def delete(codigo):
         return Database.execute(
-            "UPDATE Editoras SET deletado = 'S', data_exclusao = GETDATE() WHERE codigo = ?",
+            "UPDATE Editoras SET deletado = '*', data_exclusao = GETDATE() WHERE codigo = ?",
             (codigo,),
         )

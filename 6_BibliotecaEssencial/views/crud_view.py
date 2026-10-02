@@ -25,14 +25,10 @@ class CrudView(ctk.CTkFrame):
 
         toolbar = ctk.CTkFrame(self, fg_color="transparent")
         toolbar.grid(row=1, column=0, sticky="ew", padx=15)
-        ctk.CTkButton(toolbar, text="➕ Novo", width=90,
-                      command=self._novo).pack(side="left", padx=5)
-        ctk.CTkButton(toolbar, text="✏️ Editar", width=90,
-                      command=self._editar).pack(side="left", padx=5)
-        ctk.CTkButton(toolbar, text="🗑️ Excluir", width=90,
-                      command=self._excluir).pack(side="left", padx=5)
-        ctk.CTkButton(toolbar, text="🔄 Atualizar", width=100,
-                      command=self._carregar).pack(side="left", padx=5)
+        ctk.CTkButton(toolbar, text="➕ Novo", width=90, command=self._novo).pack(side="left", padx=5)
+        ctk.CTkButton(toolbar, text="✏️ Editar", width=90, command=self._editar).pack(side="left", padx=5)
+        ctk.CTkButton(toolbar, text="🗑️ Excluir", width=90, command=self._excluir).pack(side="left", padx=5)
+        ctk.CTkButton(toolbar, text="🔄 Atualizar", width=100, command=self._carregar).pack(side="left", padx=5)
 
         self.estilo = ttk.Style()
         if "clam" in self.estilo.theme_names():
@@ -61,14 +57,12 @@ class CrudView(ctk.CTkFrame):
         )
 
         table_frame = ctk.CTkFrame(self)
-        table_frame.grid(row=2, column=0, sticky="nsew",
-                         padx=15, pady=(10, 15))
+        table_frame.grid(row=2, column=0, sticky="nsew", padx=15, pady=(10, 15))
         table_frame.grid_rowconfigure(0, weight=1)
         table_frame.grid_columnconfigure(0, weight=1)
 
         cols = [key for key, _ in display_columns]
-        self.tree = ttk.Treeview(
-            table_frame, columns=cols, show="headings", selectmode="browse")
+        self.tree = ttk.Treeview(table_frame, columns=cols, show="headings", selectmode="browse")
 
         for key, label in display_columns:
             self.tree.heading(key, text=label)
@@ -76,14 +70,12 @@ class CrudView(ctk.CTkFrame):
             if largura is None:
                 largura = 70 if key == "codigo" else 160
             ancoragem = "center" if key == "codigo" else "w"
-            self.tree.column(key, width=largura, minwidth=60,
-                             anchor=ancoragem, stretch=True)
+            self.tree.column(key, width=largura, minwidth=60, anchor=ancoragem, stretch=True)
 
         self.tree.tag_configure("linha_par", background="#F1F5F9")
         self.tree.tag_configure("linha_impar", background="#FFFFFF")
 
-        vsb = ttk.Scrollbar(table_frame, orient="vertical",
-                            command=self.tree.yview)
+        vsb = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=vsb.set)
         self.tree.grid(row=0, column=0, sticky="nsew")
         vsb.grid(row=0, column=1, sticky="ns")
@@ -99,8 +91,7 @@ class CrudView(ctk.CTkFrame):
             self.tree.delete(item)
         try:
             for indice, row in enumerate(self.repository.list_all()):
-                values = [self._format(row[i])
-                          for i in range(len(self.display_columns))]
+                values = [self._format(row[i]) for i in range(len(self.display_columns))]
                 tag = "linha_par" if indice % 2 == 0 else "linha_impar"
                 self.tree.insert("", "end", values=values, tags=(tag,))
         except Exception as e:
@@ -121,7 +112,6 @@ class CrudView(ctk.CTkFrame):
         if not sel:
             messagebox.showwarning("Aviso", "Selecione um registro na tabela.")
             return None
-        # [0] é ESSENCIAL: pega só o código, não a linha inteira (evita erro TVP)
         return self.tree.item(sel[0], "values")[0]
 
     # ---------- Ações: novo / editar / excluir ----------
@@ -137,7 +127,6 @@ class CrudView(ctk.CTkFrame):
             if not row:
                 messagebox.showwarning("Aviso", "Registro não encontrado.")
                 return
-            # CORREÇÃO: passa o CÓDIGO, não o row[0] (evita erro TVP)
             self._abrir_formulario(codigo)
         except Exception as e:
             messagebox.showerror("Erro", f"Falha ao buscar registro:\n{e}")
@@ -197,15 +186,13 @@ class CrudView(ctk.CTkFrame):
         if codigo:
             row = self.repository.get_by_id(codigo)[0]
             for i, f in enumerate(self.fields):
-                # pula o codigo (coluna 0)
-                valores_atuais[f["name"]] = row[i + 1]
+                valores_atuais[f["name"]] = row[i + 1]  # pula o codigo (coluna 0)
 
         container = ctk.CTkScrollableFrame(janela, width=380, height=290)
         container.pack(fill="both", expand=True, padx=15, pady=15)
 
         for f in self.fields:
-            ctk.CTkLabel(container, text=f["label"]).pack(
-                anchor="w", pady=(8, 2))
+            ctk.CTkLabel(container, text=f["label"]).pack(anchor="w", pady=(8, 2))
             tipo = f.get("type", "text")
 
             if tipo == "select":
@@ -241,8 +228,7 @@ class CrudView(ctk.CTkFrame):
                 if tipo == "select":
                     combo, opcoes = entradas[nome]
                     selecionado = combo.get()
-                    oid = next((o[0]
-                               for o in opcoes if o[1] == selecionado), None)
+                    oid = next((o[0] for o in opcoes if o[1] == selecionado), None)
                     dados[nome] = oid
                 elif tipo == "int":
                     val = entradas[nome].get().strip()
