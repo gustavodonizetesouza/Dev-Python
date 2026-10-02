@@ -28,6 +28,38 @@ class BibliotecaRepository:
         )
 
     @staticmethod
+    def buscar(campo, termo):
+        """Busca livros por TÍTULO, EDITORA ou AUTOR (LIKE, sem diferenciar maiúscula).
+
+        campo: "titulo" | "editora" | "autor"  (whitelist — nunca concatena direto)
+        termo: texto digitado pelo usuário (ex.: "harry", "intrinseca", "machado")
+        """
+        termo = (termo or "").strip()
+        if not termo:
+            return BibliotecaRepository.list_all()
+
+        # Whitelist de colunas: só aceita estes 3 valores, nunca o texto do usuário
+        colunas = {
+            "titulo": "b.nome_livro",
+            "editora": "e.editora",
+            "autor": "a.nome_autor",
+        }
+        if campo not in colunas:
+            return BibliotecaRepository.list_all()
+
+        return Database.query(
+            f"SELECT b.codigo, b.nome_livro, a.nome_autor, e.editora, g.genero, b.situacao "
+            f"FROM Biblioteca b "
+            f"LEFT JOIN Autores a ON b.autor = a.codigo "
+            f"LEFT JOIN Editoras e ON b.editora = e.codigo "
+            f"LEFT JOIN Generos g ON b.genero = g.codigo "
+            f"WHERE ISNULL(b.deletado, '') = '' "
+            f"AND {colunas[campo]} LIKE ? "
+            f"ORDER BY b.nome_livro",
+            (f"%{termo}%",),
+        )
+
+    @staticmethod
     def get_by_id(codigo):
         return Database.query("SELECT * FROM Biblioteca WHERE codigo = ?", (codigo,))
 

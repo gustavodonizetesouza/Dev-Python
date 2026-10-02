@@ -9,11 +9,11 @@
 #   - Campos de texto em CAIXA ALTA
 #   - Datas no formato dd/mm/aaaa
 #   - Formulário centralizado e preso ao sistema (modal)
+#   - FILTRO DE BUSCA: por Título, Editora ou Autor (automático)
 # ============================================
 import customtkinter as ctk
 from tkinter import ttk, messagebox
 from datetime import datetime
-
 from repositories.biblioteca_repository import BibliotecaRepository
 from repositories.autor_repository import AutorRepository
 from repositories.editora_repository import EditoraRepository
@@ -43,6 +43,26 @@ class BibliotecaView(ctk.CTkFrame):
                       command=self._excluir).pack(side="left", padx=5)
         ctk.CTkButton(toolbar, text="🔄 Atualizar", width=100,
                       command=self._carregar).pack(side="left", padx=5)
+
+        # ---- Filtro de busca: Título, Editora ou Autor (NOVO) ----
+        sep = ctk.CTkFrame(toolbar, width=2, height=28, fg_color="#CBD5E1")
+        sep.pack(side="left", padx=8)
+
+        ctk.CTkLabel(toolbar, text="Buscar por:",
+                     font=("Segoe UI", 12)).pack(side="left", padx=(0, 4))
+        self.busca_criterio = ctk.CTkOptionMenu(
+            toolbar, values=["Título", "Editora", "Autor"], width=100)
+        self.busca_criterio.set("Título")
+        self.busca_criterio.pack(side="left", padx=4)
+
+        self.busca_entry = ctk.CTkEntry(
+            toolbar, width=230, placeholder_text="Digite para buscar...")
+        self.busca_entry.pack(side="left", padx=4)
+        self.busca_entry.bind("<KeyRelease>", lambda e: self._buscar())
+        self.busca_entry.bind("<Return>", lambda e: self._buscar())
+
+        ctk.CTkButton(toolbar, text="✖ Limpar", width=90,
+                      command=self._limpar_busca).pack(side="left", padx=4)
 
         self._montar_tabela()
         self._carregar()
@@ -99,10 +119,14 @@ class BibliotecaView(ctk.CTkFrame):
 
     # ---------- Carregar dados ----------
     def _carregar(self):
+        self._preencher_tabela(BibliotecaRepository.list_all())
+
+    def _preencher_tabela(self, rows):
+        """Preenche a Treeview com as linhas retornadas pelo banco."""
         for item in self.tree.get_children():
             self.tree.delete(item)
         try:
-            for indice, row in enumerate(BibliotecaRepository.list_all()):
+            for indice, row in enumerate(rows):
                 # row: codigo, nome_livro, nome_autor, editora, genero, situacao
                 situacao = self.SITUACOES.get(str(row[5]), "")
                 values = [row[0], row[1], row[2], row[3], row[4], situacao]
@@ -110,6 +134,27 @@ class BibliotecaView(ctk.CTkFrame):
                 self.tree.insert("", "end", values=values, tags=(tag,))
         except Exception as e:
             messagebox.showerror("Erro", f"Falha ao carregar dados:\n{e}")
+
+    # ---------- Filtro de busca (NOVO) ----------
+    def _buscar(self):
+        """Filtra a listagem por Título, Editora ou Autor (ao digitar)."""
+        termo = self.busca_entry.get().strip()
+        if not termo:
+            self._carregar()
+            return
+        mapa = {"título": "titulo", "editora": "editora", "autor": "autor"}
+        criterio = mapa.get(self.busca_criterio.get().lower(), "titulo")
+        try:
+            self._preencher_tabela(
+                BibliotecaRepository.buscar(criterio, termo))
+        except Exception as e:
+            messagebox.showerror("Erro", f"Falha na busca:\n{e}")
+
+    def _limpar_busca(self):
+        """Limpa o campo de busca e restaura a listagem completa."""
+        self.busca_entry.delete(0, "end")
+        self.busca_criterio.set("Título")
+        self._carregar()
 
     def _selected_codigo(self):
         sel = self.tree.selection()
@@ -207,7 +252,6 @@ class BibliotecaView(ctk.CTkFrame):
     # ---------- Formulário (replica o layout ASP.NET: campos lado a lado) ----------
     def _abrir_formulario(self, codigo):
         largura, altura = 780, 620
-
         janela = ctk.CTkToplevel(self)
         janela.title(f"{'Editar' if codigo else 'Novo'} - Livro")
 
@@ -247,6 +291,7 @@ class BibliotecaView(ctk.CTkFrame):
         # ---- Coluna dos DADOS (grid de 3 colunas, campos lado a lado) ----
         col_dados = ctk.CTkFrame(container, fg_color="transparent")
         col_dados.pack(side="left", fill="both", expand=True)
+
         # 3 colunas de largura igual, como as col-md do Bootstrap
         col_dados.grid_columnconfigure((0, 1, 2), weight=1, uniform="campos")
 
@@ -254,7 +299,6 @@ class BibliotecaView(ctk.CTkFrame):
 
         def montar_campo(pai, label, nome, tipo, linha, coluna, colspan=1):
             """Cria um bloco label (em cima) + widget (embaixo), posicionado no grid.
-
             Replica o padrão do ASP.NET: form-label acima do form-control,
             com vários campos na mesma linha (lado a lado).
             """
@@ -274,27 +318,33 @@ class BibliotecaView(ctk.CTkFrame):
                     opcoes = self._opcoes_genero()
                 else:  # situacao
                     opcoes = [(k, v) for k, v in self.SITUACOES.items()]
+
                 nomes = [o[1] for o in opcoes]
                 combo = ctk.CTkOptionMenu(bloco, values=nomes)
                 combo.pack(fill="x", pady=(4, 0))
+
                 atual_val = atual.get(nome)
                 if atual_val is not None:
                     for oid, onome in opcoes:
                         if str(oid) == str(atual_val):
                             combo.set(onome)
                             break
+
                 entradas[nome] = ("select", combo, opcoes)
             else:
                 entry = ctk.CTkEntry(bloco)
                 entry.pack(fill="x", pady=(4, 0))
+
                 atual_val = atual.get(nome)
                 if atual_val is not None:
                     if tipo == "date":
                         entry.insert(0, self._fmt_data(atual_val))
                     else:
                         entry.insert(0, str(atual_val).upper())
+
                 if tipo == "text":
                     entry.bind("<KeyRelease>", self._maiusculas_ao_digitar)
+
                 entradas[nome] = ("entry", entry)
 
         # ===== Campos dispostos LADO A LADO (linha, coluna, colspan) =====
@@ -342,7 +392,6 @@ class BibliotecaView(ctk.CTkFrame):
 
         def salvar():
             dados = {}
-
             # Campos de texto
             for nome in ("nome_livro", "sub_titulo", "codigo_barras",
                          "codigo_isbn", "edicao"):
