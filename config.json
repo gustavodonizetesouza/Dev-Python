@@ -1,0 +1,9 @@
+{
+  "server": "10.84.37.42\\DB01",
+  "database": "DADOSADV11",
+  "username": "CONSULTA",
+  "password": "polycons2008",
+  "driver": "ODBC Driver 18 for SQL Server",
+  "trust_certificate": true,
+  "timeout": 30
+}

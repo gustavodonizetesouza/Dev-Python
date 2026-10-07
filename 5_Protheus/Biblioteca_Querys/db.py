@@ -1,13 +1,15 @@
 # ============================================================
 # db.py - Camada de acesso ao banco (SQL Server / Protheus)
 #   - Conexão via pyodbc (somente leitura)
+#   - Lê as configurações atuais via config.py (config.json)
 #   - Conversão de datas padrão Protheus (CYYMMDD)
 #   - Suporte a cancelamento da query em execução
 # ============================================================
 import pyodbc
 import pandas as pd
 from datetime import datetime
-from config import CONNECTION_STRING
+
+import config
 
 # Limite de linhas aplicado automaticamente quando o SQL não traz TOP
 LIMITE_PADRAO = 5000
@@ -39,10 +41,15 @@ class ExecucaoQuery:
                 pass
 
 
-def testar_conexao() -> str:
-    """Testa a conexão e devolve mensagem de status."""
+def testar_conexao(custom_cfg: dict = None) -> str:
+    """Testa a conexão e devolve mensagem de status.
+
+    custom_cfg: dict opcional com os dados da tela de configuração
+    (permite testar ANTES de salvar).
+    """
     try:
-        with pyodbc.connect(CONNECTION_STRING, timeout=10) as conn:
+        with pyodbc.connect(config.montar_connection_string(custom_cfg),
+                            timeout=10) as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT @@VERSION")
                 versao = cur.fetchone()[0]
@@ -104,7 +111,9 @@ def executar_query(sql: str, execucao: ExecucaoQuery = None) -> pd.DataFrame:
     if "TOP " not in sql.upper() and "SET ROWCOUNT" not in sql.upper():
         sql = sql.replace("SELECT", f"SELECT TOP {LIMITE_PADRAO}", 1)
 
-    conn = pyodbc.connect(CONNECTION_STRING, timeout=30)
+    conf = config.carregar_config()
+    conn = pyodbc.connect(config.montar_connection_string(conf),
+                          timeout=int(conf.get("timeout", 30)))
     if execucao is not None:
         execucao.conn = conn  # expõe a conexão para o botão "Parar" cancelar
 
