@@ -2,9 +2,11 @@
 # app.py - Protheus Reports (Biblioteca de Queries)
 #   - Biblioteca de queries persistente (queries.json)
 #   - Filtros dinâmicos (data e texto) com conversão Protheus
-#   - Execução em thread (tela não congela)
+#   - Execução em thread + botão PARAR (cancela no servidor)
+#   - Botão LIMPAR (zera o resultado para nova execução)
 #   - Exportação XLSX e PDF (A4 paisagem)
 #   - Janela abre maximizada (agendada pós-inicialização)
+#   - Indicador de conclusão + contagem de linhas
 #   - Atalhos: Ctrl+Enter executa | Ctrl+S salva
 # ============================================================
 import json
@@ -12,6 +14,7 @@ import os
 import queue
 import re
 import threading
+import time
 from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
 
@@ -48,9 +51,11 @@ class AppProtheus(ctk.CTk):
         self.indice_atual = None
         self.df_atual = None
         self.fila = queue.Queue()
-        self.campos_param = {}  # nome -> dict(label, entry, combo_tipo, combo_formato)
+        self.campos_param = {}          # nome -> dict(label, entry, combos)
+        self.execucao_atual = None      # ExecucaoQuery em andamento (ou None)
 
-        self.lbl_status = ctk.CTkLabel(self, text="Verificando conexão...", anchor="w")
+        self.lbl_status = ctk.CTkLabel(
+            self, text="Verificando conexão...", anchor="w")
         self.lbl_status.pack(fill="x", padx=10, pady=(10, 0))
         threading.Thread(target=self._testar, daemon=True).start()
 
@@ -70,7 +75,6 @@ class AppProtheus(ctk.CTk):
         try:
             self.state("zoomed")
         except Exception:
-            # Fallback: se 'zoomed' não funcionar, tenta o atributo
             try:
                 self.attributes("-zoomed", True)
             except Exception:
@@ -86,7 +90,8 @@ class AppProtheus(ctk.CTk):
         esq.pack(side="left", fill="y", padx=(0, 10))
         esq.pack_propagate(False)
 
-        ctk.CTkLabel(esq, text="Queries Salvas", font=("Segoe UI", 14, "bold")).pack(pady=(10, 5))
+        ctk.CTkLabel(esq, text="Queries Salvas", font=(
+            "Segoe UI", 14, "bold")).pack(pady=(10, 5))
 
         self.lista = tk_Listbox(esq)
         self.lista.pack(fill="both", expand=True, padx=8)
@@ -94,8 +99,10 @@ class AppProtheus(ctk.CTk):
 
         frame_bt = ctk.CTkFrame(esq)
         frame_bt.pack(fill="x", padx=8, pady=8)
-        ctk.CTkButton(frame_bt, text="Nova", command=self._nova, width=70).pack(side="left", padx=2)
-        ctk.CTkButton(frame_bt, text="Excluir", command=self._excluir, width=70).pack(side="left", padx=2)
+        ctk.CTkButton(frame_bt, text="Nova", command=self._nova,
+                      width=70).pack(side="left", padx=2)
+        ctk.CTkButton(frame_bt, text="Excluir", command=self._excluir,
+                      width=70).pack(side="left", padx=2)
 
         # Painel direito: editor + resultados
         dir_ = ctk.CTkFrame(principal)
@@ -103,7 +110,8 @@ class AppProtheus(ctk.CTk):
 
         self.ent_nome = ctk.CTkEntry(dir_, placeholder_text="Nome da query")
         self.ent_nome.pack(fill="x", padx=10, pady=(10, 5))
-        self.ent_desc = ctk.CTkEntry(dir_, placeholder_text="Descrição (opcional)")
+        self.ent_desc = ctk.CTkEntry(
+            dir_, placeholder_text="Descrição (opcional)")
         self.ent_desc.pack(fill="x", padx=10, pady=5)
 
         ctk.CTkLabel(dir_, text="SQL — use {{NOME}} sem aspas nos filtros:",
@@ -121,23 +129,43 @@ class AppProtheus(ctk.CTk):
         frame_botoes.pack(fill="x", padx=10, pady=5)
         ctk.CTkButton(frame_botoes, text="Salvar Query", command=self._salvar,
                       width=120).pack(side="left", padx=5)
-        ctk.CTkButton(frame_botoes, text="Executar", command=self._executar,
-                      width=100).pack(side="left", padx=5)
+        self.btn_executar = ctk.CTkButton(frame_botoes, text="Executar",
+                                          command=self._executar, width=100)
+        self.btn_executar.pack(side="left", padx=5)
+        self.btn_parar = ctk.CTkButton(frame_botoes, text="Parar",
+                                       command=self._parar, width=90,
+                                       fg_color="#a03030", hover_color="#c04040")
+        self.btn_parar.pack(side="left", padx=5)
+        self.btn_parar.configure(state="disabled")
+        self.btn_limpar = ctk.CTkButton(frame_botoes, text="Limpar",
+                                        command=self._limpar, width=90,
+                                        fg_color="#5a5a5a", hover_color="#6f6f6f")
+        self.btn_limpar.pack(side="left", padx=5)
+        self.btn_limpar.configure(state="disabled")
         ctk.CTkButton(frame_botoes, text="Exportar XLSX", command=self._exportar,
                       width=130).pack(side="left", padx=5)
         ctk.CTkButton(frame_botoes, text="Exportar PDF", command=self._exportar_pdf,
                       width=130).pack(side="left", padx=5)
 
+        # Barra de resultado (destaque de conclusão e contagem de linhas)
+        self.lbl_resultado = ctk.CTkLabel(
+            dir_, text="", anchor="w", font=("Segoe UI", 14, "bold"),
+            text_color="#7fd47f",
+        )
+        self.lbl_resultado.pack(fill="x", padx=10, pady=(5, 0))
+
         # Tabela de resultados
         self.tree = ttk.Treeview(dir_, show="headings")
         sc_y = ttk.Scrollbar(dir_, orient="vertical", command=self.tree.yview)
-        sc_x = ttk.Scrollbar(dir_, orient="horizontal", command=self.tree.xview)
+        sc_x = ttk.Scrollbar(dir_, orient="horizontal",
+                             command=self.tree.xview)
         self.tree.configure(yscrollcommand=sc_y.set, xscrollcommand=sc_x.set)
         self.tree.pack(fill="both", expand=True, padx=10, pady=(5, 0))
         sc_y.pack(side="right", fill="y")
         sc_x.pack(side="bottom", fill="x")
 
-        self.lbl_info = ctk.CTkLabel(dir_, text="", anchor="w")
+        self.lbl_info = ctk.CTkLabel(
+            dir_, text="", anchor="w", text_color="gray")
         self.lbl_info.pack(fill="x", padx=10, pady=(5, 10))
 
     # ---------- Biblioteca ----------
@@ -153,6 +181,8 @@ class AppProtheus(ctk.CTk):
         self.txt_sql.delete("1.0", "end")
         self.lista.selection_clear(0, "end")
         self._gerar_parametros()
+        self.lbl_resultado.configure(text="")
+        self.lbl_info.configure(text="")
 
     def _abrir_selecionada(self, _event=None):
         sel = self.lista.curselection()
@@ -167,6 +197,8 @@ class AppProtheus(ctk.CTk):
         self.txt_sql.delete("1.0", "end")
         self.txt_sql.insert("1.0", q["sql"])
         self._gerar_parametros()
+        self.lbl_resultado.configure(text="")
+        self.lbl_info.configure(text="")
 
     def _salvar(self):
         nome = self.ent_nome.get().strip()
@@ -247,9 +279,11 @@ class AppProtheus(ctk.CTk):
         linha = ctk.CTkFrame(self.frame_params)
         linha.pack(fill="x", pady=2)
 
-        ctk.CTkLabel(linha, text=f"{label}:", width=170, anchor="w").pack(side="left", padx=5)
+        ctk.CTkLabel(linha, text=f"{label}:", width=170,
+                     anchor="w").pack(side="left", padx=5)
 
-        entry = ctk.CTkEntry(linha, placeholder_text="DD/MM/AAAA" if tipo == "data" else "valor")
+        entry = ctk.CTkEntry(
+            linha, placeholder_text="DD/MM/AAAA" if tipo == "data" else "valor")
         entry.pack(side="left", fill="x", expand=True, padx=5)
 
         combo_tipo = ctk.CTkComboBox(linha, values=["texto", "data"], width=90,
@@ -277,31 +311,79 @@ class AppProtheus(ctk.CTk):
             if cfg["combo_tipo"].get() == "data":
                 if not valor:
                     raise ValueError(f"Preencha o campo '{cfg['label']}'.")
-                valor = db.data_para_protheus(valor, cfg["combo_formato"].get())
+                valor = db.data_para_protheus(
+                    valor, cfg["combo_formato"].get())
             valor = valor.replace("'", "''")  # protege contra aspas no valor
             sql = sql.replace("{{" + nome_p + "}}", f"'{valor}'")
 
         # Detecta placeholders que sobraram (não preenchidos)
         sobrou = re.findall(r"\{\{(\w+)\}\}", sql)
         if sobrou:
-            raise ValueError(f"Placeholders sem campo de filtro: {', '.join(sobrou)}")
+            raise ValueError(
+                f"Placeholders sem campo de filtro: {', '.join(sobrou)}")
         return sql
 
-    # ---------- Execução / Exportação ----------
+    # ---------- Execução / Parar / Limpar / Exportação ----------
+    def _set_executando(self, ativo: bool):
+        """Habilita/desabilita os botões conforme o estado de execução."""
+        self.btn_executar.configure(state="disabled" if ativo else "normal")
+        self.btn_parar.configure(state="normal" if ativo else "disabled")
+        # Limpar só fica ativo quando há resultado e não está executando
+        if ativo:
+            self.btn_limpar.configure(state="disabled")
+        else:
+            self.btn_limpar.configure(
+                state="normal" if self.df_atual is not None else "disabled")
+
     def _executar(self):
+        if self.execucao_atual is not None:
+            return  # já existe uma consulta em andamento
+
         try:
             sql = self._montar_sql_final()
         except ValueError as e:
             messagebox.showwarning("Atenção", str(e))
             return
 
-        self.lbl_info.configure(text="Executando consulta...")
-        threading.Thread(target=self._worker, args=(sql,), daemon=True).start()
+        # Limpa resultado anterior para não misturar dados
+        self.df_atual = None
+        self.tree.delete(*self.tree.get_children())
 
-    def _worker(self, sql):
+        self.execucao_atual = db.ExecucaoQuery()
+        self.lbl_resultado.configure(
+            text="⏳ Executando consulta...", text_color="#e0b84c")
+        self.lbl_info.configure(text="Aguardando resposta do banco...")
+        self._inicio_execucao = time.time()
+        self._set_executando(True)
+
+        threading.Thread(target=self._worker, args=(sql, self.execucao_atual),
+                         daemon=True).start()
+
+    def _parar(self):
+        if self.execucao_atual is None:
+            return
+        self.lbl_resultado.configure(
+            text="⏹ Parando consulta...", text_color="#e0b84c")
+        self.lbl_info.configure(text="Cancelando consulta no servidor...")
+        self.execucao_atual.cancelar()
+
+    def _limpar(self):
+        """Limpa o resultado atual para iniciar uma nova execução."""
+        if self.execucao_atual is not None:
+            return  # não limpa durante a execução
+        self.df_atual = None
+        self.tree.delete(*self.tree.get_children())
+        self.tree["columns"] = []
+        self.lbl_resultado.configure(text="")
+        self.lbl_info.configure(text="")
+        self.btn_limpar.configure(state="disabled")
+
+    def _worker(self, sql, execucao):
         try:
-            df = db.executar_query(sql)
+            df = db.executar_query(sql, execucao)
             self.fila.put(("ok", df))
+        except db.CancelaConsulta:
+            self.fila.put(("cancelado", None))
         except Exception as e:
             self.fila.put(("erro", str(e)))
         self.after(100, self._processar)
@@ -312,12 +394,28 @@ class AppProtheus(ctk.CTk):
         except queue.Empty:
             return
 
+        if status == "cancelado":
+            self.execucao_atual = None
+            self._set_executando(False)
+            self.lbl_resultado.configure(
+                text="⏹ Consulta cancelada", text_color="#e0b84c")
+            self.lbl_info.configure(
+                text="A execução foi interrompida antes da conclusão.")
+            return
+
         if status == "erro":
-            self.lbl_info.configure(text=f"Erro: {payload}")
+            self.execucao_atual = None
+            self._set_executando(False)
+            self.lbl_resultado.configure(
+                text="❌ Erro na consulta", text_color="#e05b5b")
+            self.lbl_info.configure(text=f"{payload}")
             messagebox.showerror("Erro", payload)
             return
 
+        # status == "ok"
+        self.execucao_atual = None
         self.df_atual = payload
+
         self.tree.delete(*self.tree.get_children())
         self.tree["columns"] = [str(c) for c in payload.columns]
         for col in self.tree["columns"]:
@@ -328,16 +426,29 @@ class AppProtheus(ctk.CTk):
             valores = ["" if v is None else str(v) for v in row]
             self.tree.insert("", "end", values=valores)
 
-        texto = f"{len(payload)} registros | {len(payload.columns)} colunas"
-        if len(payload) == db.LIMITE_PADRAO:
+        tempo = time.time() - getattr(self, "_inicio_execucao", time.time())
+        n_linhas = len(payload)
+        n_colunas = len(payload.columns)
+
+        self.lbl_resultado.configure(
+            text=f"✅ Consulta concluída em {tempo:.1f}s — {n_linhas:,} linhas".replace(
+                ",", "."),
+            text_color="#7fd47f",
+        )
+
+        texto = f"{n_colunas} colunas"
+        if n_linhas == db.LIMITE_PADRAO:
             texto += "  (resultado limitado a 5000 linhas — ajuste LIMITE_PADRAO em db.py)"
         self.lbl_info.configure(text=texto)
+
+        self._set_executando(False)  # reativa o Limpar (agora há resultado)
 
     def _exportar(self):
         if self.df_atual is None:
             messagebox.showwarning("Atenção", "Execute uma consulta primeiro.")
             return
-        nome_base = (self.ent_nome.get().strip() or "relatorio").replace(" ", "_")
+        nome_base = (self.ent_nome.get().strip()
+                     or "relatorio").replace(" ", "_")
         caminho = filedialog.asksaveasfilename(
             defaultextension=".xlsx",
             filetypes=[("Excel", "*.xlsx")],
@@ -355,7 +466,8 @@ class AppProtheus(ctk.CTk):
         if self.df_atual is None:
             messagebox.showwarning("Atenção", "Execute uma consulta primeiro.")
             return
-        nome_sugerido = (self.ent_nome.get().strip() or "relatorio").replace(" ", "_")
+        nome_sugerido = (self.ent_nome.get().strip()
+                         or "relatorio").replace(" ", "_")
         caminho = filedialog.asksaveasfilename(
             defaultextension=".pdf",
             filetypes=[("PDF", "*.pdf")],

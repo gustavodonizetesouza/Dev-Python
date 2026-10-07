@@ -18,6 +18,50 @@
           "formato": "aaaammdd"
         }
       ]
+    },
+    {
+      "nome": "Produção GIA",
+      "descricao": "",
+      "sql": "SELECT \nSD3010.D3_TM AS 'TP Movimento', \nSD3010.D3_COD AS 'Código', \nSD3010.D3_UM AS 'Unidade', \nSD3010.D3_QUANT AS 'Quantidade', \nSD3010.D3_OP AS 'OM', \nSD3010.D3_LOCAL AS 'Armazém', \nSD3010.D3_EMISSAO AS 'DT Emissão', \nSD3010.D3_LOTECTL AS 'Lote', \nSB1010.B1_LM2 AS 'Env./CX', \nSB1010.B1_DESCCEL AS 'Célula', \nSBM010.BM_DESC AS 'Família'\nFROM SB1010 SB1010, SBM010 SBM010, SD3010 SD3010\nWHERE \nSD3010.D3_COD = SB1010.B1_COD \nAND SB1010.B1_GRUPO = SBM010.BM_GRUPO \nAND ((SD3010.D3_TM='010') \nAND (SD3010.D3_UM='CX') \nAND (SD3010.D_E_L_E_T_='') \nAND (SB1010.D_E_L_E_T_='') \nAND (SBM010.D_E_L_E_T_='') \nAND (SD3010.D3_LOCAL='91') \nAND (SD3010.D3_ESTORNO<>'Sim'))\nAND D3_EMISSAO BETWEEN {{DATA_INICIO}} AND {{DATA_FIM}}",
+      "parametros": [
+        {
+          "nome": "DATA_FIM",
+          "label": "Data Fim",
+          "tipo": "texto",
+          "formato": "cyymmdd"
+        },
+        {
+          "nome": "DATA_INICIO",
+          "label": "Data Inicio",
+          "tipo": "texto",
+          "formato": "cyymmdd"
+        }
+      ]
+    },
+    {
+      "nome": "LimiteXGrupoEconomico",
+      "descricao": "Financeiro - Contas Receber",
+      "sql": "SELECT SA1010.A1_COD, SA1010.A1_NOME, SA1010.A1_NREDUZ, SA1010.A1_EST, SA1010.A1_XGRPFIN, ZGE010.ZGE_NOME, \nSUM(SE1010.E1_SALDO) AS TotalSaldo, SA1010.A1_COND, SE4010.E4_DESCRI, SA1010.A1_CGC, \nSA1010.A1_LC, SA1010.A1_SATIV1, SX5010.X5_DESCRI, SA1010.A1_ULTREVI, SA1010.A1_STATUS \nFROM SA1010 \nINNER JOIN SE4010 ON SE4010.E4_CODIGO = SA1010.A1_COND AND SE4010.D_E_L_E_T_='' \nINNER JOIN SX5010 ON SX5010.X5_CHAVE = SA1010.A1_SATIV1 AND SX5010.D_E_L_E_T_='' \nINNER JOIN SE1010 ON SE1010.E1_CLIENTE = SA1010.A1_COD AND SE1010.D_E_L_E_T_ = ''\nFULL JOIN ZGE010 ON ZGE010.ZGE_COD = SA1010.A1_XGRPFIN AND ZGE010.D_E_L_E_T_='' \nWHERE SA1010.D_E_L_E_T_ = '' \nAND SX5010.X5_TABELA = 'T3' \nGROUP BY SA1010.A1_COD, SA1010.A1_NOME, SA1010.A1_NREDUZ,SA1010.A1_EST, SA1010.A1_XGRPFIN, ZGE010.ZGE_NOME, \nSA1010.A1_COND, SE4010.E4_DESCRI, SA1010.A1_CGC, SA1010.A1_LC, SA1010.A1_SATIV1, SX5010.X5_DESCRI, \nSA1010.A1_ULTREVI, SA1010.A1_STATUS \nORDER BY SA1010.A1_COD, SA1010.A1_NOME, SA1010.A1_NREDUZ, SA1010.A1_EST, SA1010.A1_XGRPFIN, ZGE010.ZGE_NOME, \nSA1010.A1_COND, SE4010.E4_DESCRI, SA1010.A1_CGC, SA1010.A1_LC, SA1010.A1_SATIV1, SX5010.X5_DESCRI, \nSA1010.A1_ULTREVI, SA1010.A1_STATUS",
+      "parametros": []
+    },
+    {
+      "nome": "FornecedoresxFrente",
+      "descricao": "Compras - Renato",
+      "sql": "SELECT\n \n    -- Colunas principais da linha do PRODUTO (D1)\n    D1.D1_NUMCQ      AS NUMCQ,        -- Chave de relacionamento entre produto e frete\n    D1.D1_DOC        AS DOC,          -- Numero do documento de entrada\n    --D1.D1_SERIE      AS SERIE,        -- Serie do documento\n    D1.D1_FORNECE    AS FORNECE,      -- Codigo do fornecedor\n    A2.A2_NOME       AS DESCRICAO,    -- Nome do Fornecedor\n    --D1.D1_LOJA       AS LOJA,         -- Loja do fornecedor\n    D1.D1_COD        AS PRODUTO,      -- Codigo do produto\n    B1.B1_DESC       AS NOME_PRODUTO, -- Descrição do Produto\n    D1.D1_TP         AS TIPO_PROD,    -- Tipo do produto (MP = Materia Prima)\n    D1.D1_GRUPO      AS GRUPO,\n    D1.D1_CUSTO      AS CUSTOS_PRODUTO,\n    D1.D1_QUANT      AS QUANTIDADE,   -- Quantidade do produto\n    D1.D1_VUNIT      AS VL_UNITARIO,  -- Valor unitario\n    D1.D1_TOTAL      AS VL_PRODUTO,   -- Valor total do produto    \n    D1.D1_DTDIGIT    AS DT_DIGITACAO, -- Data de digitacao\n    --D1.D1_EMISSAO    AS DT_EMISSAO,   -- Data de emissao\n    F4.F4_TEXTO01    AS 'TIPODE ENTRADA', -- Descrição da TES informada na entrada\n    \n    -- Colunas da linha de FRETE (D2) - Podem vir NULL quando não houver frete vinculado\n    D2.D1_FORNECE    AS FORNECEDOR_FRETE,             -- Codigo Fornecedor de frete\n    A3.A2_NOME       AS DESCRICAO_FORNECE_FRETE,      -- Fornecedor de Frete (nome)\n    D2.D1_DOC        AS DOCUMENTO_FRETE,             -- Documento Frete\n    D2.D1_COD        AS PRODUTO_FRETE,                -- Produto utilizado para registrar o frete\n    D2.D1_CUSTO      AS CUSTOS_FRETE,\n    D2.D1_TOTAL      AS 'VL FRETE',                   -- Valor do frete\n\n    -- Coluna calculada: total do produto + frete\n    -- ISNULL garante 0 quando nao houver linha de frete (LEFT JOIN retorna NULL)\n    (D1.D1_TOTAL + ISNULL(D2.D1_TOTAL, 0)) AS 'VL PROD + FRETE',\n\n    -- Coluna auxiliar para identificar visualmente se há frete vinculado ou não\n    CASE \n        WHEN D2.D1_NUMCQ IS NULL THEN 'Sem Frete'\n        ELSE 'Com Frete'\n    END AS STATUS_FRETE\n\nFROM SD1010 D1\n\n    -- LEFT JOIN: traz TODOS os produtos, inclusive os que NAO possuem frete vinculado\n    -- Antes era INNER JOIN (via JOIN), que retornava APENAS produtos COM frete\n    LEFT JOIN SD1010 D2\n        ON  D1.D1_NUMCQ = D2.D1_NUMCQ        -- Mesma chave de relacionamento\n        AND D2.D_E_L_E_T_ = ''                -- Linha de frete nao deletada\n        AND D2.D1_QUANT  = 0                  -- Linha de frete possui quantidade zero\n        AND D2.D1_TIPO   = 'C'                -- Linha de frete e do tipo complemento (C)\n\n    -- JOINs comuns (tabelas de apoio)\n    INNER JOIN SA2010 A2                      -- Fornecedor do PRODUTO\n        ON A2.A2_COD = D1.D1_FORNECE\n\n    LEFT JOIN SA2010 A3                       -- Fornecedor do FRETE (LEFT JOIN pois pode ser NULL)\n        ON A3.A2_COD = D2.D1_FORNECE\n\n    INNER JOIN SB1010 B1                      -- Produto (B1)\n        ON B1.B1_COD = D1.D1_COD\n\n    INNER JOIN SF4010 F4                      -- TES (tipo de entrada)\n        ON F4.F4_CODIGO = D1.D1_TES\n\nWHERE\n    -- Filtros da linha do PRODUTO (D1)\n    D1.D_E_L_E_T_ = ''                                                   -- Ignora registros deletados (Protheus)\n    AND D1.D1_DTDIGIT BETWEEN {{DATA_INICIO}} AND {{DATA_FIM}}       -- Periodo de digitacao\n    AND D1.D1_TP = 'MP'                                                  -- Somente linha de materia-prima\n    AND D1.D1_QUANT > 0                                                   -- Garante que seja a linha do produto (quantidade > 0)\n    --AND D1.D1_DOC = '000188190'\n\n-- Ordenacao por documento de entrada\nORDER BY D1.D1_DOC;",
+      "parametros": [
+        {
+          "nome": "DATA_FIM",
+          "label": "Data Fim",
+          "tipo": "data",
+          "formato": "aaaammdd"
+        },
+        {
+          "nome": "DATA_INICIO",
+          "label": "Data Inicio",
+          "tipo": "data",
+          "formato": "aaaammdd"
+        }
+      ]
     }
   ]
 }
