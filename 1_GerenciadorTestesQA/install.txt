@@ -1,0 +1,50 @@
+pip install -r requirements.txt
+
+
+
+
+# 1. Instale o Python 3.11+ (se ainda não tiver) em python.org
+# 2. Crie uma pasta e um ambiente virtual (boa prática desde o início)
+cd protheus_test_manager
+python -m venv venv
+
+# 3. Ative o ambiente
+# Windows:
+venv\Scripts\activate
+# Linux/Mac:
+source venv/bin/activate
+
+# 4. Instale as dependências
+pip install -r requirements.txt
+
+# 5. Rode o app
+python main.py
+
+############### Uso do APP ##################
+
+Passo 1 — Entenda o fluxo de uso (a ordem importa)
+O app foi desenhado para espelhar o seu processo real de virada. A ordem de uso é:
+
+Cadastrar casos → Criar ciclo → Associar casos → Executar → Gerar relatório
+
+Isso não é por acaso: é exatamente o fluxo de trabalho (Steps) que vimos no painel. Se você pular uma etapa, a próxima não tem dados.
+
+Passo 2 — Conheça cada tela na prática
+🗂️ Aba "Casos de Teste" (o catálogo)
+Clique em Novo e cadastre o primeiro caso: código (ex.: ER1-System access), descrição, módulo (SIGAFAT...), tipo, prioridade, responsável.
+Teste os filtros de módulo e tipo no topo — veja como a tabela filtra na hora.
+Edite e exclua para ver o comportamento.
+🎯 Meta: cadastre 3–5 casos reais da sua última virada. Isso te dá dados para testar as outras telas.
+📅 Aba "Ciclos de Virada"
+Clique em Novo Ciclo e crie um ciclo de teste (ex.: Release 12.1.2410, ano atual).
+Depois clique em Associar Casos e selecione os casos que você cadastrou (Ctrl+clique para múltiplos).
+🎯 Meta: associe os 3–5 casos ao ciclo e veja como eles aparecem na tela de execução.
+✅ Aba "Execução" (o coração)
+Selecione o ciclo no combo do topo.
+Veja os KPIs atualizados em tempo real (total, % execução, % aprovação).
+Selecione um teste e clique em Registrar Execução: mude o status, o %, o responsável, anexe uma evidência (print) e escreva observações.
+🎯 Meta: marque um caso como "Aprovado" 100%, outro como "Em andamento" 50% e outro como "Reprovado". Observe os KPIs mudarem.
+📊 Aba "Relatórios & KPIs"
+Selecione o ciclo e veja os KPIs consolidados.
+Clique em Exportar Excel e Exportar PDF — escolha onde salvar e abra os arquivos para ver o resultado formatado.
+🎯 Meta: gere os dois relatórios e confira se os dados batem com o que você registrou.

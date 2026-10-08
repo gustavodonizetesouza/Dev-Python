@@ -1,0 +1,21 @@
+Estrutura do projeto
+protheus_test_manager/
+├── requirements.txt
+├── main.py
+├── database/
+│   ├── __init__.py
+│   ├── connection.py      ← camada de conexão (SQLite agora, migra p/ SQL Server/MySQL)
+│   └── models.py          ← CRUD (repositórios)
+├── ui/
+│   ├── __init__.py
+│   ├── main_window.py
+│   ├── casos_widget.py
+│   ├── ciclos_widget.py
+│   ├── execucao_widget.py
+│   └── relatorios_widget.py
+├── reports/
+│   ├── __init__.py
+│   └── gerador.py         ← Excel (openpyxl) + PDF (reportlab)
+└── utils/
+    ├── __init__.py
+    └── helpers.py

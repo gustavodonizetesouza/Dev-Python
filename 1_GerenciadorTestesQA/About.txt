@@ -1,0 +1,23 @@
+O app que vai aposentar a sua planilha de testes
+Imagine a cena: virada de versão anual do Protheus chegando. Hoje, você abre a planilha, olha para centenas de linhas, tenta lembrar quem testou o quê, caça prints espalhados em e-mails, e no fim da semana ainda precisa montar aquele relatório para a auditoria — na mão, com risco de esquecer um teste de compliance.
+
+Agora imagine o mesmo cenário com o Gerenciador de Testes Protheus rodando na sua máquina. É isso que eu quero te vender:
+
+🗂️ 1. Sua biblioteca de testes, viva e reutilizável
+Cada caso de teste vira um registro permanente — código, módulo (SIGAFAT, SIGAFIS, SIGAPCP...), rotina, tipo, prioridade, responsável e o requisito de compliance vinculado. Você cadastra uma vez e usa para sempre. Na próxima virada, não recadastra nada: só seleciona quais casos entram no ciclo. Ano após ano, sua base só cresce e fica mais forte.
+
+📅 2. Ciclos de virada — cada versão, um capítulo
+Cada virada anual vira um ciclo formal (ex.: Release 12.1.2410), com data de início e fim. Você associa os casos de regressão + compliance daquele release em poucos cliques. O histórico de cada versão fica intacto e comparável.
+
+✅ 3. Execução com evidência e rastreabilidade
+O coração do app. Cada teste recebe status (Não iniciado → Em andamento → Aprovado / Reprovado / Bloqueado), % concluído, responsável, horas reais e evidência anexada (o print, o log de erro do AppServer). Tudo com carimbo de quem executou e quando. Nada se perde, nada se discute depois.
+
+📊 4. KPIs e relatórios que se montam sozinhos
+O app calcula em tempo real o % de execução, % de aprovação e defeitos por módulo — e gera o relatório Excel e PDF com um clique. O dossiê de homologação que você levava horas para montar sai pronto, formatado e auditável. Isso é ouro para compliance (SOX, SPED, LGPD).
+
+Por que comprar essa ideia de você para você mesmo?
+Hoje: planilha estática, dados espalhados, relatório manual, risco de não-conformidade. Com o app: base centralizada, rastreabilidade completa, relatório em segundos, e respaldo total de auditoria.
+
+E o melhor: começa desktop, leve e sem servidor (SQLite), e evolui quando você quiser para SQL Server (que você já domina) e depois web + integração com a API do Protheus. Você aprende Python na prática enquanto resolve um problema real da fábrica — dois coelhos com uma cajadada só.
+
+Quando você voltar, o próximo passo que mais economiza tempo é o script de importação da sua planilha atual — migra todo o histórico sem redigitar nada. É só pedir. 💪
