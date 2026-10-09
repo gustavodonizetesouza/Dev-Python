@@ -1,22 +1,21 @@
-"""Cadastro de módulos (CRUD completo, com renomeação sem perder vínculos)."""
+"""Cadastro de tipos de ciclo (renomear sem perder vínculos)."""
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
     QPushButton, QLabel, QMessageBox, QHeaderView, QInputDialog,
 )
 from PySide6.QtCore import Qt
-from database.models import ModuloRepositorio
+from database.models import TipoCicloRepositorio
 
 
-class ModulosDialog(QDialog):
+class TiposCicloDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Módulos")
-        self.resize(420, 400)
-        # nome do último módulo criado (para selecionar no combo)
-        self.ultimo_novo = None
+        self.setWindowTitle("Tipos de Ciclo")
+        self.resize(420, 380)
 
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Módulos cadastrados:"))
+        layout.addWidget(
+            QLabel("Tipos de ciclo cadastrados (usados na aba Ciclos):"))
 
         self.tabela = QTableWidget(0, 2)
         self.tabela.setHorizontalHeaderLabels(["ID", "Nome"])
@@ -47,13 +46,13 @@ class ModulosDialog(QDialog):
         self.carregar()
 
     def carregar(self):
-        modulos = ModuloRepositorio.listar()
-        self.tabela.setRowCount(len(modulos))
-        for i, m in enumerate(modulos):
-            id_item = QTableWidgetItem(str(m["id"]))
-            id_item.setData(Qt.UserRole, m["id"])
+        tipos = TipoCicloRepositorio.listar()
+        self.tabela.setRowCount(len(tipos))
+        for i, t in enumerate(tipos):
+            id_item = QTableWidgetItem(str(t["id"]))
+            id_item.setData(Qt.UserRole, t["id"])
             self.tabela.setItem(i, 0, id_item)
-            self.tabela.setItem(i, 1, QTableWidgetItem(m["nome"]))
+            self.tabela.setItem(i, 1, QTableWidgetItem(t["nome"]))
 
     def _selecionado(self):
         linha = self.tabela.currentRow()
@@ -65,26 +64,25 @@ class ModulosDialog(QDialog):
         self.renomear()
 
     def novo(self):
-        nome, ok = QInputDialog.getText(self, "Novo Módulo", "Nome do módulo:")
+        nome, ok = QInputDialog.getText(self, "Novo Tipo", "Nome do tipo:")
         if ok and nome.strip():
-            novo_id, erro = ModuloRepositorio.inserir(nome)
+            novo_id, erro = TipoCicloRepositorio.inserir(nome)
             if erro:
                 QMessageBox.warning(self, "Erro", erro)
             else:
-                self.ultimo_novo = nome.strip().upper()
                 self.carregar()
 
     def renomear(self):
-        modulo_id = self._selecionado()
-        if not modulo_id:
-            QMessageBox.information(self, "Aviso", "Selecione um módulo.")
+        tipo_id = self._selecionado()
+        if not tipo_id:
+            QMessageBox.information(self, "Aviso", "Selecione um tipo.")
             return
         linha = self.tabela.currentRow()
         nome_atual = self.tabela.item(linha, 1).text()
         novo_nome, ok = QInputDialog.getText(
-            self, "Renomear Módulo", "Novo nome:", text=nome_atual)
+            self, "Renomear Tipo", "Novo nome:", text=nome_atual)
         if ok and novo_nome.strip():
-            ok_ren, msg = ModuloRepositorio.atualizar(modulo_id, novo_nome)
+            ok_ren, msg = TipoCicloRepositorio.atualizar(tipo_id, novo_nome)
             if ok_ren:
                 QMessageBox.information(self, "Sucesso", msg)
                 self.carregar()
@@ -92,16 +90,15 @@ class ModulosDialog(QDialog):
                 QMessageBox.warning(self, "Atenção", msg)
 
     def excluir(self):
-        modulo_id = self._selecionado()
-        if not modulo_id:
-            QMessageBox.information(self, "Aviso", "Selecione um módulo.")
+        tipo_id = self._selecionado()
+        if not tipo_id:
+            QMessageBox.information(self, "Aviso", "Selecione um tipo.")
             return
-        resp = QMessageBox.question(self, "Confirmar", "Excluir este módulo?")
-        if resp == QMessageBox.Yes:
-            if ModuloRepositorio.excluir(modulo_id):
+        if QMessageBox.question(self, "Confirmar", "Excluir este tipo?") == QMessageBox.Yes:
+            if TipoCicloRepositorio.excluir(tipo_id):
                 self.carregar()
             else:
                 QMessageBox.information(
                     self, "Não é possível",
-                    "Este módulo está em uso por casos de teste.\n"
-                    "Use 'Renomear' em vez de excluir — assim os casos são atualizados.")
+                    "Este tipo está em uso por ciclos.\n"
+                    "Use 'Renomear' em vez de excluir — os ciclos são atualizados.")

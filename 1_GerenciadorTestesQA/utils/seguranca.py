@@ -11,19 +11,30 @@ SERVICE = "GerenciadorTestesEssencial"
 
 
 def salvar_senha(conexao_id, senha):
-    """Guarda a senha no cofre do sistema (Keyring)."""
+    """Guarda a senha no cofre (Keyring). Nunca trava: em qualquer falha,
+    cai para o fallback em base64 na própria linha de conexão."""
     if not senha:
         return
     if HAS_KEYRING:
-        keyring.set_password(SERVICE, str(conexao_id), senha)
-    else:
-        _salvar_fallback(conexao_id, senha)
+        try:
+            keyring.set_password(SERVICE, str(conexao_id), senha)
+            return
+        except Exception:
+            # Se o Keyring falhar (backend ausente/prompt travando),
+            # usa o fallback silencioso — o app nunca congela por causa de senha.
+            pass
+    _salvar_fallback(conexao_id, senha)
 
 
 def obter_senha(conexao_id, senha_armazenada=None):
     """Recupera a senha. Retorna None se não houver."""
     if HAS_KEYRING:
-        return keyring.get_password(SERVICE, str(conexao_id))
+        try:
+            valor = keyring.get_password(SERVICE, str(conexao_id))
+            if valor:
+                return valor
+        except Exception:
+            pass
     if senha_armazenada:
         try:
             return base64.b64decode(senha_armazenada).decode()
@@ -33,7 +44,7 @@ def obter_senha(conexao_id, senha_armazenada=None):
 
 
 def _salvar_fallback(conexao_id, senha):
-    """Guarda em base64 na própria linha (somente se Keyring ausente)."""
+    """Guarda em base64 na própria linha (somente se Keyring ausente/falhou)."""
     import sqlite3
     from pathlib import Path
     from database.connection import CONFIG_DB_PATH

@@ -6,12 +6,12 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QIntValidator, QColor
 from PySide6.QtCore import Qt
-from database.models import CicloRepositorio, UsuarioRepositorio, MelhoriaRepositorio
+from database.models import (CicloRepositorio, UsuarioRepositorio,
+                             MelhoriaRepositorio)
 from utils.helpers import STATUS_OPCOES, PRIORIDADES_OPCOES
 
 
 def horas_para_float(texto):
-    """Converte 'HH:MM' em horas decimais (ex.: '01:30' -> 1.5)."""
     texto = (texto or "").strip()
     if not texto or texto in ("00:00", "0:00"):
         return 0.0
@@ -25,7 +25,6 @@ def horas_para_float(texto):
 
 
 def float_para_horas(valor):
-    """Converte horas decimais em 'HH:MM' (ex.: 1.5 -> '01:30')."""
     try:
         valor = float(valor or 0)
     except (TypeError, ValueError):
@@ -39,9 +38,9 @@ def float_para_horas(valor):
 
 
 def tem_execucao(exec):
-    """Diz se um caso já possui execução registrada (além do padrão)."""
     return (
-        exec.get("status") not in ("Não iniciado", "Nao iniciado", None, "")
+        exec.get("status_exec") not in (
+            "Não iniciado", "Nao iniciado", None, "")
         or int(exec.get("percentual") or 0) > 0
         or bool(exec.get("responsavel"))
         or bool(exec.get("evidencia"))
@@ -50,7 +49,7 @@ def tem_execucao(exec):
 
 
 class MelhoriaRapidaDialog(QDialog):
-    """Captura rápida de melhoria a partir da execução (já com contexto)."""
+    """Captura rápida de melhoria a partir da execução (já com contexto do ciclo)."""
 
     def __init__(self, parent=None, ciclo_id=None, caso_origem_id=None, caso_codigo=""):
         super().__init__(parent)
@@ -58,6 +57,15 @@ class MelhoriaRapidaDialog(QDialog):
         self.setMinimumWidth(520)
 
         form = QFormLayout()
+        self.cb_ciclo = QComboBox()
+        self.cb_ciclo.addItem("", None)
+        for c in CicloRepositorio.listar():
+            self.cb_ciclo.addItem(
+                f"{c['nome']} ({c.get('tipo') or ''})", c["id"])
+        if ciclo_id:
+            idx = self.cb_ciclo.findData(ciclo_id)
+            if idx >= 0:
+                self.cb_ciclo.setCurrentIndex(idx)
         self.ed_titulo = QLineEdit()
         self.ed_descricao = QTextEdit()
         self.ed_descricao.setFixedHeight(80)
@@ -68,6 +76,7 @@ class MelhoriaRapidaDialog(QDialog):
         self.cb_responsavel.addItems([u["nome"]
                                      for u in UsuarioRepositorio.listar()])
 
+        form.addRow("Ciclo:", self.cb_ciclo)
         form.addRow("Título:", self.ed_titulo)
         form.addRow("Descrição:", self.ed_descricao)
         form.addRow("Prioridade:", self.cb_prioridade)
@@ -85,7 +94,6 @@ class MelhoriaRapidaDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(botoes)
 
-        self.ciclo_id = ciclo_id
         self.caso_origem_id = caso_origem_id
 
     def _validar(self):
@@ -101,7 +109,7 @@ class MelhoriaRapidaDialog(QDialog):
             "descricao": self.ed_descricao.toPlainText().strip(),
             "prioridade": self.cb_prioridade.currentText(),
             "responsavel": self.cb_responsavel.currentText(),
-            "ciclo_id": self.ciclo_id,
+            "ciclo_id": self.cb_ciclo.currentData(),
             "caso_origem_id": self.caso_origem_id,
             "status": "Proposta",
         }
@@ -187,7 +195,7 @@ class ExecucaoDialog(QDialog):
             self.ed_evidencia.setText(arquivo)
 
     def _preencher(self, execucao):
-        idx = self.cb_status.findText(execucao.get("status") or "")
+        idx = self.cb_status.findText(execucao.get("status_exec") or "")
         if idx >= 0:
             self.cb_status.setCurrentIndex(idx)
         self.ed_perc.setText(str(int(execucao.get("percentual") or 0)))
@@ -316,8 +324,8 @@ class ExecucaoWidget(QWidget):
             valores = [
                 str(reg["id"]), reg["codigo"], reg.get(
                     "tarefa") or "", reg["modulo"],
-                reg["status"], str(reg["percentual"]), reg.get(
-                    "responsavel") or "",
+                reg.get("status_exec") or "", str(reg["percentual"]),
+                reg.get("responsavel") or "",
                 "Registrada" if tem else "—",
                 reg.get("atualizado_em") or "",
             ]
@@ -380,7 +388,6 @@ class ExecucaoWidget(QWidget):
             self._salvar(linha, dlg.dados())
 
     def registrar_melhoria(self):
-        """Captura rápida de melhoria a partir do caso selecionado."""
         linha = self.tabela.currentRow()
         if linha < 0 or linha >= len(self._dados_linha):
             QMessageBox.information(
@@ -395,8 +402,8 @@ class ExecucaoWidget(QWidget):
             QMessageBox.information(self, "Sucesso", "Melhoria registrada!")
 
     def _salvar(self, linha, dados):
-        cc_id = self._dados_linha[linha]["id"]
+        caso_id = self._dados_linha[linha]["id"]
         CicloRepositorio.atualizar_execucao(
-            cc_id, dados["status"], dados["percentual"], dados["responsavel"],
+            caso_id, dados["status"], dados["percentual"], dados["responsavel"],
             dados["horas_reais"], dados["evidencia"], dados["observacoes"])
         self.carregar()
