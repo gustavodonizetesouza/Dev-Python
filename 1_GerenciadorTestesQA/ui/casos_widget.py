@@ -67,9 +67,10 @@ class CasoDialog(QDialog):
 
     @staticmethod
     def _carregar_modulos(combo):
+        """Carrega os módulos CADASTRADOS no banco. Se não houver, fica vazio."""
         combo.clear()
         modulos = ModuloRepositorio.listar()
-        combo.addItems([m["nome"] for m in modulos] or ["SIGACFG"])
+        combo.addItems([m["nome"] for m in modulos])
 
     @staticmethod
     def _carregar_usuarios(combo):

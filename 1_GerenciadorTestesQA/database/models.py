@@ -1,5 +1,6 @@
 """Repositórios de acesso a dados."""
 from .connection import Database
+from utils.seguranca import salvar_senha
 
 
 class ModuloRepositorio:
@@ -29,7 +30,6 @@ class ModuloRepositorio:
 
     @staticmethod
     def excluir(modulo_id):
-        """Exclui um módulo. Retorna False se ele estiver em uso por casos de teste."""
         conn = Database.get_connection()
         cur = conn.cursor()
         cur.execute("SELECT nome FROM modulos WHERE id = ?", (modulo_id,))
@@ -109,7 +109,7 @@ class CasoRepositorio:
         if filtro_tipo:
             sql += " AND tipo = ?"
             params.append(filtro_tipo)
-        sql += " ORDER BY id"  # ← ordena por ID, como pedido
+        sql += " ORDER BY id"
         cur.execute(sql, params)
         rows = [dict(r) for r in cur.fetchall()]
         conn.close()
@@ -117,7 +117,6 @@ class CasoRepositorio:
 
     @staticmethod
     def modulos_com_testes():
-        """Retorna apenas os módulos que possuem casos cadastrados (para o filtro)."""
         conn = Database.get_connection()
         cur = conn.cursor()
         cur.execute("SELECT DISTINCT modulo FROM casos_teste ORDER BY modulo")
@@ -200,7 +199,6 @@ class CicloRepositorio:
 
     @staticmethod
     def associar_casos(ciclo_id, caso_ids):
-        """Vincula casos selecionados ao ciclo (regressão + compliance)."""
         conn = Database.get_connection()
         cur = conn.cursor()
         for cid in caso_ids:
@@ -210,6 +208,26 @@ class CicloRepositorio:
             """, (ciclo_id, cid))
         conn.commit()
         conn.close()
+
+    @staticmethod
+    def desvincular_casos(ciclo_id, caso_ids):
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        for cid in caso_ids:
+            cur.execute(
+                "DELETE FROM ciclo_casos WHERE ciclo_id=? AND caso_id=?", (ciclo_id, cid))
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    def casos_vinculados(ciclo_id):
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT caso_id FROM ciclo_casos WHERE ciclo_id = ?", (ciclo_id,))
+        ids = {r[0] for r in cur.fetchall()}
+        conn.close()
+        return ids
 
     @staticmethod
     def casos_do_ciclo(ciclo_id):
@@ -241,7 +259,6 @@ class CicloRepositorio:
 
     @staticmethod
     def kpis(ciclo_id):
-        """Retorna % execução, % aprovação, contagens por status."""
         conn = Database.get_connection()
         cur = conn.cursor()
         cur.execute("""
@@ -270,3 +287,63 @@ class CicloRepositorio:
             "perc_execucao": round((row[4] or 0) / total * 100, 1),
             "perc_aprovacao": round((row[1] or 0) / total * 100, 1),
         }
+
+
+class ConexaoRepositorio:
+    @staticmethod
+    def listar():
+        conn = Database.get_config_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM conexoes ORDER BY nome")
+        rows = [dict(r) for r in cur.fetchall()]
+        conn.close()
+        return rows
+
+    @staticmethod
+    def obter(conexao_id):
+        conn = Database.get_config_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM conexoes WHERE id=?", (conexao_id,))
+        row = cur.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    @staticmethod
+    def inserir(dados, senha):
+        conn = Database.get_config_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO conexoes (nome, cliente, tipo, host, porta, banco, usuario, driver)
+            VALUES (?,?,?,?,?,?,?,?)
+        """, (dados["nome"], dados.get("cliente"), dados["tipo"],
+              dados.get("host"), dados.get("porta"), dados.get("banco"),
+              dados.get("usuario"), dados.get("driver")))
+        conn.commit()
+        novo_id = cur.lastrowid
+        conn.close()
+        if senha:
+            salvar_senha(novo_id, senha)
+        return novo_id
+
+    @staticmethod
+    def atualizar(conexao_id, dados, senha=None):
+        conn = Database.get_config_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE conexoes SET nome=?, cliente=?, tipo=?, host=?, porta=?,
+                banco=?, usuario=?, driver=? WHERE id=?
+        """, (dados["nome"], dados.get("cliente"), dados["tipo"],
+              dados.get("host"), dados.get("porta"), dados.get("banco"),
+              dados.get("usuario"), dados.get("driver"), conexao_id))
+        conn.commit()
+        conn.close()
+        if senha:
+            salvar_senha(conexao_id, senha)
+
+    @staticmethod
+    def excluir(conexao_id):
+        conn = Database.get_config_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM conexoes WHERE id=?", (conexao_id,))
+        conn.commit()
+        conn.close()
