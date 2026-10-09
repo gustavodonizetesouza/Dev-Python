@@ -29,7 +29,53 @@ class ModuloRepositorio:
             return None, str(e)
 
     @staticmethod
+    def atualizar(modulo_id, novo_nome):
+        """
+        Renomeia o módulo e atualiza TUDO que o referencia:
+        - casos_teste.modulo
+        - melhorias.modulo
+        Feito em transação: ou renomeia tudo, ou nada (rollback).
+        """
+        novo_nome = novo_nome.strip().upper()
+        if not novo_nome:
+            return False, "Informe o novo nome do módulo."
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        try:
+            # Pega o nome atual antes de renomear
+            cur.execute("SELECT nome FROM modulos WHERE id = ?", (modulo_id,))
+            row = cur.fetchone()
+            if not row:
+                conn.close()
+                return False, "Módulo não encontrado."
+            antigo_nome = row[0]
+            if antigo_nome == novo_nome:
+                conn.close()
+                return False, "O novo nome é igual ao atual."
+            # Evita duplicidade (o nome é UNIQUE)
+            cur.execute("SELECT id FROM modulos WHERE nome = ? AND id <> ?",
+                        (novo_nome, modulo_id))
+            if cur.fetchone():
+                conn.close()
+                return False, f"Já existe um módulo com o nome '{novo_nome}'."
+            # Renomeia no cadastro e em tudo que referencia (transação)
+            cur.execute("UPDATE modulos SET nome = ? WHERE id = ?",
+                        (novo_nome, modulo_id))
+            cur.execute("UPDATE casos_teste SET modulo = ? WHERE modulo = ?",
+                        (novo_nome, antigo_nome))
+            cur.execute("UPDATE melhorias SET modulo = ? WHERE modulo = ?",
+                        (novo_nome, antigo_nome))
+            conn.commit()
+            conn.close()
+            return True, f"Módulo '{antigo_nome}' renomeado para '{novo_nome}'. Casos e melhorias vinculados foram atualizados."
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            return False, str(e)
+
+    @staticmethod
     def excluir(modulo_id):
+        """Exclui um módulo. Retorna False se ele estiver em uso por casos de teste."""
         conn = Database.get_connection()
         cur = conn.cursor()
         cur.execute("SELECT nome FROM modulos WHERE id = ?", (modulo_id,))
@@ -347,3 +393,132 @@ class ConexaoRepositorio:
         cur.execute("DELETE FROM conexoes WHERE id=?", (conexao_id,))
         conn.commit()
         conn.close()
+
+
+class MelhoriaRepositorio:
+    """Controle de melhorias propostas durante os testes.
+
+    Uma melhoria pode se tornar um caso de teste (gerar_caso_teste),
+    criando um vínculo rastreável (melhorias.caso_teste_id).
+    """
+
+    STATUS_OPCOES = ["Proposta", "Em análise",
+                     "Aprovada", "Implementada", "Recusada"]
+
+    @staticmethod
+    def _proximo_codigo():
+        """Gera o próximo código sequencial (MEL-001, MEL-002...)."""
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM melhorias")
+        total = cur.fetchone()[0]
+        conn.close()
+        return f"MEL-{total + 1:03d}"
+
+    @staticmethod
+    def listar(filtro_status=None):
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        sql = "SELECT * FROM melhorias WHERE 1=1"
+        params = []
+        if filtro_status:
+            sql += " AND status = ?"
+            params.append(filtro_status)
+        sql += " ORDER BY id DESC"
+        cur.execute(sql, params)
+        rows = [dict(r) for r in cur.fetchall()]
+        conn.close()
+        return rows
+
+    @staticmethod
+    def obter(melhoria_id):
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM melhorias WHERE id = ?", (melhoria_id,))
+        row = cur.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    @staticmethod
+    def inserir(dados):
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        codigo = MelhoriaRepositorio._proximo_codigo()
+        cur.execute("""
+            INSERT INTO melhorias
+                (codigo, titulo, descricao, modulo, prioridade, status, responsavel,
+                 ciclo_id, caso_origem_id, observacoes)
+            VALUES (?,?,?,?,?,?,?,?,?,?)
+        """, (codigo, dados["titulo"], dados.get("descricao"), dados.get("modulo"),
+              dados.get("prioridade", "Media"), dados.get(
+                  "status", "Proposta"),
+              dados.get("responsavel"), dados.get(
+                  "ciclo_id"), dados.get("caso_origem_id"),
+              dados.get("observacoes")))
+        conn.commit()
+        novo_id = cur.lastrowid
+        conn.close()
+        return novo_id
+
+    @staticmethod
+    def atualizar(melhoria_id, dados):
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        data_impl = None
+        if dados.get("status") == "Implementada":
+            data_impl = "datetime('now','localtime')"
+        cur.execute("""
+            UPDATE melhorias SET titulo=?, descricao=?, modulo=?, prioridade=?, status=?,
+                responsavel=?, observacoes=?, data_implementacao=COALESCE(?, data_implementacao)
+            WHERE id=?
+        """, (dados["titulo"], dados.get("descricao"), dados.get("modulo"),
+              dados.get("prioridade", "Media"), dados.get(
+                  "status", "Proposta"),
+              dados.get("responsavel"), dados.get("observacoes"), data_impl, melhoria_id))
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    def excluir(melhoria_id):
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM melhorias WHERE id=?", (melhoria_id,))
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    def gerar_caso_teste(melhoria_id):
+        """Transforma a melhoria em um caso de teste no catálogo.
+
+        Cria um caso novo (herdando título/descrição/módulo/prioridade da melhoria)
+        e grava o vínculo em melhorias.caso_teste_id.
+        Retorna (ok, mensagem, caso_id).
+        """
+        melhoria = MelhoriaRepositorio.obter(melhoria_id)
+        if not melhoria:
+            return False, "Melhoria não encontrada.", None
+        if melhoria.get("caso_teste_id"):
+            return False, "Esta melhoria já gerou um caso de teste.", melhoria["caso_teste_id"]
+        if melhoria.get("status") != "Implementada":
+            return False, "A melhoria precisa estar 'Implementada' para gerar um caso de teste.", None
+
+        # Cria o caso de teste no catálogo
+        caso_id = CasoRepositorio.inserir({
+            "codigo": melhoria["codigo"],
+            "tarefa": melhoria["titulo"],
+            "descricao": melhoria.get("descricao") or melhoria["titulo"],
+            "modulo": melhoria.get("modulo") or "Geral",
+            "prioridade": melhoria.get("prioridade", "Media"),
+            "tipo": "Funcional",
+            "responsavel": melhoria.get("responsavel"),
+        })
+
+        # Grava o vínculo
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        cur.execute("UPDATE melhorias SET caso_teste_id=? WHERE id=?",
+                    (caso_id, melhoria_id))
+        conn.commit()
+        conn.close()
+
+        return True, f"Caso de teste {melhoria['codigo']} criado a partir da melhoria.", caso_id

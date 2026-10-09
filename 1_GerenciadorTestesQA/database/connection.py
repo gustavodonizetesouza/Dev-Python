@@ -230,7 +230,6 @@ class Database:
                 cfg = Database._conexao_padrao_local()
             Database.criar_schema_para(cfg)
         except Exception:
-            # Conexão ativa inválida -> usa e ativa a local padrão
             cfg = Database._conexao_padrao_local()
             if cfg.get("id"):
                 Database.definir_conexao_ativa(cfg["id"])
@@ -298,5 +297,23 @@ class Database:
                 FOREIGN KEY (ciclo_id) REFERENCES ciclos(id) ON DELETE CASCADE,
                 FOREIGN KEY (caso_id) REFERENCES casos_teste(id) ON DELETE CASCADE,
                 UNIQUE (ciclo_id, caso_id)
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS melhorias (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                codigo TEXT UNIQUE NOT NULL,
+                titulo TEXT NOT NULL,
+                descricao TEXT,
+                modulo TEXT,
+                prioridade TEXT NOT NULL DEFAULT 'Media',
+                status TEXT NOT NULL DEFAULT 'Proposta',
+                responsavel TEXT,
+                ciclo_id INTEGER,
+                caso_origem_id INTEGER,
+                caso_teste_id INTEGER,
+                data_criacao TEXT DEFAULT (datetime('now','localtime')),
+                data_implementacao TEXT,
+                observacoes TEXT
             )
         """)

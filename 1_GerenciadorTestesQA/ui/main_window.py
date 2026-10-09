@@ -7,6 +7,7 @@ from .casos_widget import CasosWidget
 from .ciclos_widget import CiclosWidget
 from .execucao_widget import ExecucaoWidget
 from .relatorios_widget import RelatoriosWidget
+from .melhorias_widget import MelhoriasWidget
 from .modulos_dialog import ModulosDialog
 from .usuarios_dialog import UsuariosDialog
 from .conexoes_dialog import ConexoesDialog
@@ -28,31 +29,29 @@ class MainWindow(QMainWindow):
         self.ciclos = CiclosWidget()
         self.execucao = ExecucaoWidget()
         self.relatorios = RelatoriosWidget()
+        self.melhorias = MelhoriasWidget()
 
         self.tabs.addTab(self.casos, "Casos de Teste")
         self.tabs.addTab(self.ciclos, "Ciclos de Virada")
         self.tabs.addTab(self.execucao, "Execução")
+        self.tabs.addTab(self.melhorias, "Melhorias")
         self.tabs.addTab(self.relatorios, "Relatórios & KPIs")
 
         self.setCentralWidget(self.tabs)
 
-        # Inicia maximizado
         self.setWindowState(Qt.WindowMaximized)
 
         self.tabs.currentChanged.connect(self._on_aba)
         self.statusBar().showMessage("Pronto")
 
-        # Seletor de conexão ativa na barra de status
         self.cb_conexao = QComboBox()
         self.cb_conexao.currentIndexChanged.connect(self._trocar_conexao)
         self.statusBar().addPermanentWidget(self.cb_conexao)
         self._preencher_seletor_conexao()
 
     def _criar_menu(self):
-        """Cria a barra de menu (Cadastros + Tema)."""
         barra = self.menuBar()
 
-        # Menu de cadastros
         menu_cadastros = barra.addMenu("Cadastros")
         acao_modulos = menu_cadastros.addAction("Módulos...")
         acao_modulos.triggered.connect(self._abrir_modulos)
@@ -61,7 +60,6 @@ class MainWindow(QMainWindow):
         acao_conexoes = menu_cadastros.addAction("Conexões a Bancos...")
         acao_conexoes.triggered.connect(self._abrir_conexoes)
 
-        # Menu de tema
         menu_tema = barra.addMenu("Tema")
         acao_claro = menu_tema.addAction("Claro")
         acao_escuro = menu_tema.addAction("Escuro")
@@ -87,21 +85,19 @@ class MainWindow(QMainWindow):
         self._recarregar_conexao()
 
     def _recarregar_conexao(self):
-        """Recarrega o seletor e todos os dados após trocar de conexão."""
         self._preencher_seletor_conexao()
         self.casos.carregar()
         self.ciclos.carregar()
         self.execucao.carregar_ciclos()
+        self.melhorias.carregar()
         self.relatorios.carregar_ciclos()
 
     def _preencher_seletor_conexao(self):
-        """Preenche o combo da barra de status com as conexões cadastradas."""
         self.cb_conexao.blockSignals(True)
         self.cb_conexao.clear()
         conexoes = ConexaoRepositorio.listar()
         for c in conexoes:
             self.cb_conexao.addItem(f"{c['nome']} ({c['tipo']})", c["id"])
-        # Marca a conexão ativa
         ativa = Database._get_conexao_ativa()
         if ativa:
             idx = self.cb_conexao.findData(ativa["id"])
@@ -110,24 +106,26 @@ class MainWindow(QMainWindow):
         self.cb_conexao.blockSignals(False)
 
     def _trocar_conexao(self, index):
-        """Ao trocar no seletor, define a nova conexão ativa e recarrega."""
         conexao_id = self.cb_conexao.itemData(index)
         if conexao_id is None:
             return
         Database.definir_conexao_ativa(conexao_id)
-        Database.init_db()  # garante o schema na conexão nova
+        Database.init_db()
         self._recarregar_conexao()
         self.statusBar().showMessage(
             f"Conexão ativa: {self.cb_conexao.currentText()}", 3000)
 
     def _trocar_tema(self, tema):
-        """Aplica o tema e atualiza a barra de status."""
         app = QCoreApplication.instance()
         ThemeManager.aplicar(app, tema)
         self.statusBar().showMessage(f"Tema alterado para: {tema}", 3000)
 
     def _on_aba(self, index):
-        if index == 2:  # Execução
+        if index == 0:  # Casos de Teste — recarrega sempre ao entrar
+            self.casos.carregar()
+        elif index == 2:  # Execução
             self.execucao.carregar_ciclos()
-        elif index == 3:  # Relatórios
+        elif index == 3:  # Melhorias
+            self.melhorias.carregar()
+        elif index == 4:  # Relatórios
             self.relatorios.carregar_ciclos()

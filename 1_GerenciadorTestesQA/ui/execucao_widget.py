@@ -1,13 +1,13 @@
 """Widget de execução dos testes de um ciclo."""
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QPushButton, QLabel, QComboBox, QLineEdit, QTextEdit,
+    QPushButton, QLabel, QComboBox, QLineEdit, QTextEdit, QFormLayout,
     QMessageBox, QDialog, QDialogButtonBox, QHeaderView, QFileDialog,
 )
-from PySide6.QtGui import QIntValidator
+from PySide6.QtGui import QIntValidator, QColor
 from PySide6.QtCore import Qt
-from database.models import CicloRepositorio, UsuarioRepositorio
-from utils.helpers import STATUS_OPCOES
+from database.models import CicloRepositorio, UsuarioRepositorio, MelhoriaRepositorio
+from utils.helpers import STATUS_OPCOES, PRIORIDADES_OPCOES
 
 
 def horas_para_float(texto):
@@ -49,11 +49,66 @@ def tem_execucao(exec):
     )
 
 
+class MelhoriaRapidaDialog(QDialog):
+    """Captura rápida de melhoria a partir da execução (já com contexto)."""
+
+    def __init__(self, parent=None, ciclo_id=None, caso_origem_id=None, caso_codigo=""):
+        super().__init__(parent)
+        self.setWindowTitle("Registrar Melhoria")
+        self.setMinimumWidth(520)
+
+        form = QFormLayout()
+        self.ed_titulo = QLineEdit()
+        self.ed_descricao = QTextEdit()
+        self.ed_descricao.setFixedHeight(80)
+        self.cb_prioridade = QComboBox()
+        self.cb_prioridade.addItems(PRIORIDADES_OPCOES)
+        self.cb_responsavel = QComboBox()
+        self.cb_responsavel.addItem("")
+        self.cb_responsavel.addItems([u["nome"]
+                                     for u in UsuarioRepositorio.listar()])
+
+        form.addRow("Título:", self.ed_titulo)
+        form.addRow("Descrição:", self.ed_descricao)
+        form.addRow("Prioridade:", self.cb_prioridade)
+        form.addRow("Responsável:", self.cb_responsavel)
+
+        if caso_codigo:
+            form.addRow("Origem:", QLabel(f"Caso {caso_codigo}"))
+
+        botoes = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        botoes.accepted.connect(self._validar)
+        botoes.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(botoes)
+
+        self.ciclo_id = ciclo_id
+        self.caso_origem_id = caso_origem_id
+
+    def _validar(self):
+        if not self.ed_titulo.text().strip():
+            QMessageBox.warning(self, "Validação",
+                                "Informe o título da melhoria.")
+            return
+        self.accept()
+
+    def dados(self):
+        return {
+            "titulo": self.ed_titulo.text().strip(),
+            "descricao": self.ed_descricao.toPlainText().strip(),
+            "prioridade": self.cb_prioridade.currentText(),
+            "responsavel": self.cb_responsavel.currentText(),
+            "ciclo_id": self.ciclo_id,
+            "caso_origem_id": self.caso_origem_id,
+            "status": "Proposta",
+        }
+
+
 class ExecucaoDialog(QDialog):
-    """Registro (novo) ou edição de execução.
-    - execucao=None  -> título 'Registrar Execução', campos vazios
-    - execucao=dict  -> título 'Editar Execução', campos pré-preenchidos
-    """
+    """Registro (novo) ou edição de execução."""
 
     def __init__(self, execucao=None, parent=None):
         super().__init__(parent)
@@ -65,7 +120,6 @@ class ExecucaoDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        # Status
         linha_status = QHBoxLayout()
         linha_status.addWidget(QLabel("Status:"))
         self.cb_status = QComboBox()
@@ -73,7 +127,6 @@ class ExecucaoDialog(QDialog):
         linha_status.addWidget(self.cb_status, 1)
         layout.addLayout(linha_status)
 
-        # Percentual — campo digitável SEM setinhas
         linha_perc = QHBoxLayout()
         linha_perc.addWidget(QLabel("Percentual (%):"))
         self.ed_perc = QLineEdit()
@@ -83,7 +136,6 @@ class ExecucaoDialog(QDialog):
         linha_perc.addWidget(self.ed_perc, 1)
         layout.addLayout(linha_perc)
 
-        # Horas — máscara HH:MM SEM setinhas
         linha_horas = QHBoxLayout()
         linha_horas.addWidget(QLabel("Horas (HH:MM):"))
         self.ed_horas = QLineEdit()
@@ -92,7 +144,6 @@ class ExecucaoDialog(QDialog):
         linha_horas.addWidget(self.ed_horas, 1)
         layout.addLayout(linha_horas)
 
-        # Responsável — combo carregado dos usuários cadastrados
         linha_resp = QHBoxLayout()
         linha_resp.addWidget(QLabel("Responsável:"))
         self.cb_responsavel = QComboBox()
@@ -100,7 +151,6 @@ class ExecucaoDialog(QDialog):
         linha_resp.addWidget(self.cb_responsavel, 1)
         layout.addLayout(linha_resp)
 
-        # Evidência
         layout.addWidget(QLabel("Evidência (caminho do arquivo/print):"))
         linha_ev = QHBoxLayout()
         self.ed_evidencia = QLineEdit()
@@ -110,7 +160,6 @@ class ExecucaoDialog(QDialog):
         layout.addLayout(linha_ev)
         btn_anexar.clicked.connect(self._anexar)
 
-        # Observações
         layout.addWidget(QLabel("Observações:"))
         self.ed_obs = QTextEdit()
         self.ed_obs.setFixedHeight(80)
@@ -172,7 +221,6 @@ class ExecucaoDialog(QDialog):
 class ExecucaoWidget(QWidget):
     def __init__(self):
         super().__init__()
-        # estado exato de cada linha (índice da lista = linha do grid)
         self._dados_linha = []
         self._build_ui()
 
@@ -202,13 +250,10 @@ class ExecucaoWidget(QWidget):
         self.tabela.setColumnWidth(5, 55)
         self.tabela.setColumnWidth(6, 110)
         self.tabela.setColumnWidth(7, 100)
-        # Ordenação desligada: a ordem do grid é SEMPRE a ordem da lista self._dados_linha
         self.tabela.setSortingEnabled(False)
         self.tabela.setSelectionBehavior(QTableWidget.SelectRows)
         self.tabela.setEditTriggers(QTableWidget.NoEditTriggers)
-        # Ao selecionar uma linha, atualiza quais botões ficam habilitados
         self.tabela.currentCellChanged.connect(self._atualizar_botoes)
-        # Duplo clique = Editar (só funciona se houver execução)
         self.tabela.cellDoubleClicked.connect(self._abrir_edicao_linha)
         layout.addWidget(self.tabela)
 
@@ -217,8 +262,11 @@ class ExecucaoWidget(QWidget):
         self.btn_novo.clicked.connect(self.novo)
         self.btn_editar = QPushButton("Editar")
         self.btn_editar.clicked.connect(self.editar)
+        btn_melhoria = QPushButton("Registrar Melhoria")
+        btn_melhoria.clicked.connect(self.registrar_melhoria)
         botoes.addWidget(self.btn_novo)
         botoes.addWidget(self.btn_editar)
+        botoes.addWidget(btn_melhoria)
         botoes.addStretch()
         layout.addLayout(botoes)
 
@@ -256,7 +304,6 @@ class ExecucaoWidget(QWidget):
             f"Progresso médio: {kpis['perc_medio']}% | Andamento: {kpis['andamento']}"
         )
 
-        # Estado calculado UMA VEZ na carga: cada linha guarda o próprio registro + flag
         self._dados_linha = []
         for c in casos:
             reg = dict(c)
@@ -278,18 +325,15 @@ class ExecucaoWidget(QWidget):
                 item = QTableWidgetItem(v)
                 if j == 0:
                     item.setData(Qt.UserRole, reg["id"])
-                if j == 7:  # coluna "Execução" com cor
+                if j == 7:
                     if tem:
-                        item.setBackground(Qt.green)
-                        item.setForeground(Qt.black)
-                    else:
-                        item.setBackground(Qt.lightGray)
+                        item.setBackground(QColor(198, 239, 206))
+                        item.setForeground(QColor(21, 87, 36))
                 self.tabela.setItem(i, j, item)
 
         self._atualizar_botoes()
 
     def _atualizar_botoes(self, *args):
-        """Habilita/desabilita os botões conforme a linha selecionada."""
         linha = self.tabela.currentRow()
         tem = False
         if 0 <= linha < len(self._dados_linha):
@@ -303,7 +347,6 @@ class ExecucaoWidget(QWidget):
         self.editar()
 
     def novo(self):
-        """Novo lançamento: só em caso SEM execução."""
         linha = self.tabela.currentRow()
         if linha < 0 or linha >= len(self._dados_linha):
             QMessageBox.information(
@@ -320,7 +363,6 @@ class ExecucaoWidget(QWidget):
             self._salvar(linha, dlg.dados())
 
     def editar(self):
-        """Editar: só em caso COM execução."""
         linha = self.tabela.currentRow()
         if linha < 0 or linha >= len(self._dados_linha):
             QMessageBox.information(
@@ -337,8 +379,22 @@ class ExecucaoWidget(QWidget):
         if dlg.exec():
             self._salvar(linha, dlg.dados())
 
+    def registrar_melhoria(self):
+        """Captura rápida de melhoria a partir do caso selecionado."""
+        linha = self.tabela.currentRow()
+        if linha < 0 or linha >= len(self._dados_linha):
+            QMessageBox.information(
+                self, "Aviso", "Selecione um teste na lista.")
+            return
+        reg = self._dados_linha[linha]
+        idx = self.cb_ciclo.currentIndex()
+        ciclo_id = self.cb_ciclo.itemData(idx) if idx >= 0 else None
+        dlg = MelhoriaRapidaDialog(self, ciclo_id, reg["id"], reg["codigo"])
+        if dlg.exec():
+            MelhoriaRepositorio.inserir(dlg.dados())
+            QMessageBox.information(self, "Sucesso", "Melhoria registrada!")
+
     def _salvar(self, linha, dados):
-        """Atualiza no banco usando o ID da PRÓPRIA linha e recarrega."""
         cc_id = self._dados_linha[linha]["id"]
         CicloRepositorio.atualizar_execucao(
             cc_id, dados["status"], dados["percentual"], dados["responsavel"],
