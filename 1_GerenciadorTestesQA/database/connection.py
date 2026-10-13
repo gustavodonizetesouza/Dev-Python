@@ -621,6 +621,29 @@ class Database:
                 observacoes TEXT
             )
         """)
+        
+        # Etapas de validação do caso de teste (teste de processo).
+        # Cada etapa pode estar vinculada a uma ROTINA do ciclo (herda o status)
+        # ou ser manual (checklist livre).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS caso_etapas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                caso_id INTEGER NOT NULL,
+                rotina_id INTEGER,
+                nome TEXT NOT NULL,
+                ordem INTEGER DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'Nao iniciada',
+                observacoes TEXT,
+                criado_em TEXT DEFAULT (datetime('now','localtime')),
+                FOREIGN KEY (caso_id) REFERENCES casos_teste(id) ON DELETE CASCADE
+            )
+        """)
+        try:
+            cols_etp = [r[1] for r in cur.execute("PRAGMA table_info(caso_etapas)").fetchall()]
+            if "rotina_id" not in cols_etp:
+                cur.execute("ALTER TABLE caso_etapas ADD COLUMN rotina_id INTEGER")
+        except Exception:
+            pass
 
         Database._migrar_legado(cur)
 

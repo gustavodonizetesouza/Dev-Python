@@ -1,13 +1,82 @@
 {
-  "queries": [
+  "pastas": [
     {
-      "nome": "Notas de Frete por Período",
-      "descricao": "Fretes digitados entre as datas informadas",
-      "sql": "SELECT\n\tF1_EMISSAO AS 'EMISSÃO',\n\tF1_DOC AS 'DOCUMENTO',\n\tF1_FORNECE AS 'FORNECEDOR',\n\tA2.A2_NOME AS 'NOME FORNECEDOR',\n\tF8_NFDIFRE AS 'DOCUMENTO FRETE',\n\tF8_TRANSP AS 'TRANSPORTADORA',\n\tA4.A2_NOME AS 'NOME TRANSPORTADORA',\n\tF8_DTDIGIT AS 'DATA DIGITAÇÃO'\nFROM SF8010 F8\nINNER JOIN SF1010 F1 ON F1.F1_DOC = F8.F8_NFORIG AND F1.D_E_L_E_T_ = ''\nINNER JOIN SA2010 A2 ON A2.A2_COD = F8.F8_FORNECE\nINNER JOIN SA2010 A4 ON A4.A2_COD = F8.F8_TRANSP\nWHERE F8_DTDIGIT BETWEEN '{{DATA_INICIO}}' AND '{{DATA_FIM}}'\n\tAND F8.D_E_L_E_T_ = ''",
-      "parametros": [
-        { "nome": "DATA_INICIO", "label": "Data Início", "tipo": "data", "formato": "aaaammdd" },
-        { "nome": "DATA_FIM",    "label": "Data Fim",    "tipo": "data", "formato": "aaaammdd" }
+      "nome": "Compras",
+      "queries": [
+        {
+          "nome": "FornecedorxFrete",
+          "descricao": "Renato",
+          "sql": "WITH FRETE AS (\n    SELECT\n        D1_NUMCQ,\n        D1_FORNECE,\n        D1_DOC,\n        D1_COD,\n        D1_CUSTO,\n        D1_TOTAL,\n        ROW_NUMBER() OVER (PARTITION BY D1_NUMCQ ORDER BY D1_DOC DESC) AS RN\n    FROM SD1010\n    WHERE D_E_L_E_T_ = ''\n      AND D1_QUANT = 0\n      AND D1_TIPO  = 'C'\n      AND D1_NUMCQ <> ''          -- ignora as 69.912 linhas de frete órfãs\n)\nSELECT\n    D1.D1_NUMCQ      AS NUMCQ,\n    D1.D1_DOC        AS DOC,\n    D1.D1_FORNECE    AS FORNECE,\n    A2.A2_NOME       AS DESCRICAO,\n    A2.A2_EST        AS ORIGEM,\n    D1.D1_COD        AS PRODUTO,\n    B1.B1_DESC       AS NOME_PRODUTO,\n    D1.D1_TP         AS TIPO_PROD,\n    D1.D1_GRUPO      AS GRUPO,\n    D1.D1_CUSTO      AS CUSTOS_PRODUTO,\n    D1.D1_QUANT      AS QUANTIDADE,\n    D1.D1_VUNIT      AS VL_UNITARIO,\n    D1.D1_TOTAL      AS VL_PRODUTO,\n    D1.D1_DTDIGIT    AS DT_DIGITACAO,\n\n    F.D1_FORNECE     AS FORNECEDOR_FRETE,\n    A3.A2_NOME       AS DESCRICAO_FORNECE_FRETE,\n    F.D1_DOC         AS DOCUMENTO_FRETE,\n    F.D1_COD         AS PRODUTO_FRETE,\n    F.D1_CUSTO       AS CUSTOS_FRETE,\n    F.D1_TOTAL       AS 'VL FRETE',\n\n    F4.F4_TEXTO01    AS 'TIPODE ENTRADA',\n    D1.D1_VALIPI     AS 'IPI',\n    D1.D1_VALICM     AS 'ICMS',\n    D1.D1_II         AS 'Imposto Importação',\n    D1.D1_VALIMP5    AS 'COFINS',\n    D1.D1_VALIMP6    AS 'PIS',\n    D1.D1_VALFRE     AS 'Frete Internacional',\n    D1.D1_SEGURO     AS 'Seguro',\n    D1.D1_DESPESA    AS 'Despesas',\n\n    (D1.D1_TOTAL + ISNULL(F.D1_TOTAL, 0)) AS 'VL PROD + FRETE',\n    CASE WHEN F.D1_NUMCQ IS NULL THEN 'Sem Frete' ELSE 'Com Frete' END AS STATUS_FRETE\n\nFROM SD1010 D1\nLEFT JOIN FRETE F\n       ON F.D1_NUMCQ = D1.D1_NUMCQ\n      AND F.RN = 1\n      AND D1.D1_NUMCQ <> ''\nINNER JOIN SA2010 A2\n        ON A2.A2_COD = D1.D1_FORNECE\n       AND A2.D_E_L_E_T_ = ''\nLEFT JOIN SA2010 A3\n       ON A3.A2_COD = F.D1_FORNECE\n      AND A3.D_E_L_E_T_ = ''\nINNER JOIN SB1010 B1\n        ON B1.B1_COD = D1.D1_COD\n       AND B1.D_E_L_E_T_ = ''\nINNER JOIN SF4010 F4\n        ON F4.F4_CODIGO = D1.D1_TES\n       AND F4.D_E_L_E_T_ = ''\nWHERE D1.D_E_L_E_T_ = ''\n  AND D1.D1_DTDIGIT = {{DataInicial}}\n  AND D1.D1_TP = 'MP'\n  AND D1.D1_QUANT > 0\nORDER BY D1.D1_DOC;",
+          "parametros": [
+            {
+              "nome": "DataInicial",
+              "label": "Datainicial",
+              "tipo": "data",
+              "formato": "aaaammdd"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "nome": "Fiscal",
+      "queries": [
+        {
+          "nome": "Reinf",
+          "descricao": "",
+          "sql": "SELECT\nFT_FILIAL  AS 'Filial',\nFT_NFISCAL AS 'Doc. Fiscal',\nFT_CODISS  AS 'Cód. Serviço',\nFT_EMISSAO AS 'Data Emissão',\nFT_ENTRADA AS 'Data Entrada',\nE2_VENCTO  AS 'Vencimento',\nE2_VENCREA AS 'Vencto Real',\nE2_BAIXA   AS 'DT Baixa',\nFT_CLIEFOR AS 'Cli/Forn.',\nA2_CGC     AS 'CNPJ/CPF',\nFT_VALCONT AS 'Vlr Contábil',\nFT_BASEINS AS 'Base INSS',\nFT_ALIQINS AS 'Aliq. INSS',\nFT_VALINS  AS 'Valor INSS',\nD1_BASEISS AS 'Base ISS',\nD1_ALIQISS AS 'Aliquota ISS',\nD1_VALISS  AS 'Valor ISS',\nFT_BASEIRR AS 'Base IRRF',\nFT_ALIQIRR AS 'Aliq. IRRF',\nFT_VALIRR  AS 'Valor IRRF',\nFT_BRETPIS AS 'Base Pis',\nFT_BRETCOF AS 'Base Cofins',\nFT_BRETCSL AS 'Base CSLL',\nFT_VRETPIS AS 'Valor Pis',\nFT_VRETCOF AS 'Valor Cofins',\nFT_VRETCSL AS 'Valor CSLL'\nFROM SFT010 SFT WITH( nolock),\n\t SD1010 SD1 WITH (nolock),\n\t SE2010 SE2 WITH( nolock),\n\t SA2010 SA2 WITH( nolock)\nWHERE FT_ESPECIE = 'NFS'\nAND FT_ENTRADA BETWEEN {{DATA_INICIO}} AND {{DATA_FIM}}\nAND SE2.E2_TIPO = 'NF'\nAND SFT.FT_FILIAL IN ('01','02','04')\n\nAND SFT.FT_NFISCAL = SE2.E2_NUM\nAND SFT.FT_SERIE = SE2.E2_PREFIXO\nAND SFT.FT_CLIEFOR = SE2.E2_FORNECE\nAND SFT.FT_LOJA = SE2.E2_LOJA\n\nAND SFT.FT_CLIEFOR = SA2.A2_COD\nAND SFT.FT_LOJA =SA2.A2_LOJA\n\nAND SFT.FT_FILIAL = SD1.D1_FILIAL\nAND SFT.FT_LOJA = SD1.D1_LOJA\nAND SFT.FT_NFISCAL = SD1.D1_DOC\nAND SFT.FT_CLIEFOR = SD1.D1_FORNECE\nAND SFT.FT_ITEM = SD1.D1_ITEM\n\nAND SA2.D_E_L_E_T_ = ''\nAND SE2.D_E_L_E_T_ = ''\nAND SD1.D_E_L_E_T_ = ''\nAND SFT.D_E_L_E_T_ = ''\nORDER BY FT_NFISCAL",
+          "parametros": [
+            {
+              "nome": "DATA_FIM",
+              "label": "Data Fim",
+              "tipo": "texto",
+              "formato": "cyymmdd"
+            },
+            {
+              "nome": "DATA_INICIO",
+              "label": "Data Inicio",
+              "tipo": "texto",
+              "formato": "cyymmdd"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "nome": "Financeiro",
+      "queries": [
+        {
+          "nome": "LimitexGrupoEconomico",
+          "descricao": "Contas a Receber",
+          "sql": "SELECT SA1010.A1_COD, SA1010.A1_NOME, SA1010.A1_NREDUZ, SA1010.A1_EST, SA1010.A1_XGRPFIN, ZGE010.ZGE_NOME, \nSUM(SE1010.E1_SALDO) AS TotalSaldo, SA1010.A1_COND, SE4010.E4_DESCRI, SA1010.A1_CGC, \nSA1010.A1_LC, SA1010.A1_SATIV1, SX5010.X5_DESCRI, SA1010.A1_ULTREVI, SA1010.A1_STATUS \nFROM SA1010 \nINNER JOIN SE4010 ON SE4010.E4_CODIGO = SA1010.A1_COND AND SE4010.D_E_L_E_T_='' \nINNER JOIN SX5010 ON SX5010.X5_CHAVE = SA1010.A1_SATIV1 AND SX5010.D_E_L_E_T_='' \nINNER JOIN SE1010 ON SE1010.E1_CLIENTE = SA1010.A1_COD AND SE1010.D_E_L_E_T_ = ''\nFULL JOIN ZGE010 ON ZGE010.ZGE_COD = SA1010.A1_XGRPFIN AND ZGE010.D_E_L_E_T_='' \nWHERE SA1010.D_E_L_E_T_ = '' \nAND SX5010.X5_TABELA = 'T3' \nGROUP BY SA1010.A1_COD, SA1010.A1_NOME, SA1010.A1_NREDUZ,SA1010.A1_EST, SA1010.A1_XGRPFIN, ZGE010.ZGE_NOME, \nSA1010.A1_COND, SE4010.E4_DESCRI, SA1010.A1_CGC, SA1010.A1_LC, SA1010.A1_SATIV1, SX5010.X5_DESCRI, \nSA1010.A1_ULTREVI, SA1010.A1_STATUS \nORDER BY SA1010.A1_COD, SA1010.A1_NOME, SA1010.A1_NREDUZ, SA1010.A1_EST, SA1010.A1_XGRPFIN, ZGE010.ZGE_NOME, \nSA1010.A1_COND, SE4010.E4_DESCRI, SA1010.A1_CGC, SA1010.A1_LC, SA1010.A1_SATIV1, SX5010.X5_DESCRI, \nSA1010.A1_ULTREVI, SA1010.A1_STATUS",
+          "parametros": []
+        }
+      ]
+    },
+    {
+      "nome": "Producao",
+      "queries": [
+        {
+          "nome": "Produção - GIA",
+          "descricao": "Slivia, Linei",
+          "sql": "SELECT \nSD3010.D3_TM AS 'TP Movimento', \nSD3010.D3_COD AS 'Código', \nSD3010.D3_UM AS 'Unidade', \nSD3010.D3_QUANT AS 'Quantidade', \nSD3010.D3_OP AS 'OM', \nSD3010.D3_LOCAL AS 'Armazém', \nSD3010.D3_EMISSAO AS 'DT Emissão', \nSD3010.D3_LOTECTL AS 'Lote', \nSB1010.B1_LM2 AS 'Env./CX', \nSB1010.B1_DESCCEL AS 'Célula', \nSBM010.BM_DESC AS 'Família'\nFROM SB1010 SB1010, SBM010 SBM010, SD3010 SD3010\nWHERE \nSD3010.D3_COD = SB1010.B1_COD \nAND SB1010.B1_GRUPO = SBM010.BM_GRUPO \nAND ((SD3010.D3_TM='010') \nAND (SD3010.D3_UM='CX') \nAND (SD3010.D_E_L_E_T_='') \nAND (SB1010.D_E_L_E_T_='') \nAND (SBM010.D_E_L_E_T_='') \nAND (SD3010.D3_LOCAL='91') \nAND (SD3010.D3_ESTORNO<>'Sim'))\nAND D3_EMISSAO BETWEEN {{DATA_INICIO}} AND {{DATA_FIM}}",
+          "parametros": [
+            {
+              "nome": "DATA_FIM",
+              "label": "Data Fim",
+              "tipo": "texto",
+              "formato": "cyymmdd"
+            },
+            {
+              "nome": "DATA_INICIO",
+              "label": "Data Inicio",
+              "tipo": "texto",
+              "formato": "cyymmdd"
+            }
+          ]
+        }
       ]
     }
-  ]
+  ],
+  "queries": []
 }

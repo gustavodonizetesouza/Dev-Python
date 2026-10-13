@@ -1,10 +1,10 @@
 """Constantes e opções fixas do sistema."""
 
 # Tipos de caso de teste
-TIPOS_OPCOES = ["Funcional", "Regressão", "Compliance", "Carga", "Integração"]
+TIPOS_OPCOES = ["Funcional", "Requisitos de Segurança", "Regressão", "Requisitos de Conformidade", "Requisitos de Desempenho", "Requisitos de dados", "Requisitos de Negócio", "Carga", "Integração"]
 
 # Prioridades
-PRIORIDADES_OPCOES = ["Baixa", "Média", "Alta", "Crítica"]
+PRIORIDADES_OPCOES = ["Baixa", "Média", "Alta", "Crítica", "Em Risco"]
 
 # Status de execução
 STATUS_OPCOES = [

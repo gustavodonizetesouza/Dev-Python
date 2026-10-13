@@ -1053,3 +1053,129 @@ class ConexaoRepositorio:
         cur.execute("DELETE FROM conexoes WHERE id=?", (conexao_id,))
         conn.commit()
         conn.close()
+class CasoEtapaRepositorio:
+    """Etapas de validação de um caso de teste (teste de processo).
+
+    Cada etapa pode estar VINCULADA a uma rotina do ciclo (herda o status dela)
+    ou ser MANUAL (checklist livre). Regra: se a rotina vinculada estiver
+    'Concluída', a etapa vira 'Passou'.
+    """
+
+    STATUS_OPCOES = ["Nao iniciada", "Em andamento", "Passou", "Falhou"]
+
+    @staticmethod
+    def listar(caso_id):
+        """Etapas do caso, com os dados da rotina vinculada (se houver)."""
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT e.*, r.codigo AS rotina_codigo, r.nome AS rotina_nome,
+                   r.status AS rotina_status
+            FROM caso_etapas e
+            LEFT JOIN ciclo_rotinas r ON r.id = e.rotina_id
+            WHERE e.caso_id = ?
+            ORDER BY e.ordem, e.id
+        """, (caso_id,))
+        rows = [dict(r) for r in cur.fetchall()]
+        conn.close()
+        return rows
+
+    @staticmethod
+    def adicionar_de_rotina(caso_id, rotina_id):
+        """Vincula uma rotina do ciclo como etapa, herdando o status da rotina."""
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM ciclo_rotinas WHERE id=?", (rotina_id,))
+        rot = cur.fetchone()
+        if not rot:
+            conn.close()
+            return False, "Rotina não encontrada no ciclo."
+        cur.execute("SELECT id FROM caso_etapas WHERE caso_id=? AND rotina_id=?",
+                    (caso_id, rotina_id))
+        if cur.fetchone():
+            conn.close()
+            return False, "Esta rotina já está vinculada a este caso."
+        cur.execute("SELECT COALESCE(MAX(ordem),0)+1 FROM caso_etapas WHERE caso_id=?",
+                    (caso_id,))
+        ordem = cur.fetchone()[0]
+        status = "Passou" if rot["status"] in ("Concluida", "Concluída") else "Nao iniciada"
+        cur.execute("""
+            INSERT INTO caso_etapas (caso_id, rotina_id, nome, ordem, status)
+            VALUES (?,?,?,?,?)
+        """, (caso_id, rotina_id, rot["nome"], ordem, status))
+        conn.commit()
+        novo_id = cur.lastrowid
+        conn.close()
+        return True, (f"Etapa vinculada à rotina '{rot['nome']}' "
+                      f"(status inicial: {status}).")
+
+    @staticmethod
+    def adicionar_manual(caso_id, nome):
+        """Cria uma etapa manual (checklist livre, sem rotina vinculada)."""
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT COALESCE(MAX(ordem),0)+1 FROM caso_etapas WHERE caso_id=?",
+                    (caso_id,))
+        ordem = cur.fetchone()[0]
+        cur.execute("""
+            INSERT INTO caso_etapas (caso_id, rotina_id, nome, ordem, status)
+            VALUES (?,NULL,?,?,?)
+        """, (caso_id, nome, ordem, "Nao iniciada"))
+        conn.commit()
+        novo_id = cur.lastrowid
+        conn.close()
+        return True, "Etapa manual adicionada."
+
+    @staticmethod
+    def atualizar_status(etapa_id, status):
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        cur.execute("UPDATE caso_etapas SET status=? WHERE id=?", (status, etapa_id))
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    def remover(etapa_id):
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM caso_etapas WHERE id=?", (etapa_id,))
+        conn.commit()
+        conn.close()
+
+    @staticmethod
+    def sincronizar_status(caso_id):
+        """Aplica a regra: rotina vinculada 'Concluída' => etapa vira 'Passou'.
+
+        Retorna a quantidade de etapas alteradas.
+        """
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT e.id, r.status AS rotina_status
+            FROM caso_etapas e
+            JOIN ciclo_rotinas r ON r.id = e.rotina_id
+            WHERE e.caso_id = ?
+        """, (caso_id,))
+        alteradas = 0
+        for e in cur.fetchall():
+            if e["rotina_status"] in ("Concluida", "Concluída"):
+                cur.execute(
+                    "UPDATE caso_etapas SET status='Passou' WHERE id=? AND status<>'Passou'",
+                    (e["id"],))
+                alteradas += cur.rowcount
+        conn.commit()
+        conn.close()
+        return alteradas
+
+    @staticmethod
+    def resumo(caso_id):
+        """Total de etapas e quantas passaram (para exibir na tela)."""
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM caso_etapas WHERE caso_id=?", (caso_id,))
+        total = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM caso_etapas WHERE caso_id=? AND status='Passou'",
+                    (caso_id,))
+        passou = cur.fetchone()[0]
+        conn.close()
+        return total, passou

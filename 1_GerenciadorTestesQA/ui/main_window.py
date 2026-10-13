@@ -45,6 +45,8 @@ class MainWindow(QMainWindow):
 
         # Ciclo selecionado na aba 1 alimenta a aba 2 (casos do ciclo)
         self.ciclos.cicloMudou.connect(self.casos.definir_ciclo)
+        # >>> NOVO: ciclo selecionado também alimenta a aba EXECUÇÃO <<<
+        self.ciclos.cicloMudou.connect(self.execucao.definir_ciclo)
         self.tabs.currentChanged.connect(self._on_aba)
         self.statusBar().showMessage("Pronto")
 
@@ -83,11 +85,13 @@ class MainWindow(QMainWindow):
         dlg = ModulosDialog(self)
         dlg.exec()
         self.casos.definir_ciclo(self.ciclos.ciclo_atual())
+        self.execucao.definir_ciclo(self.ciclos.ciclo_atual())
 
     def _abrir_usuarios(self):
         dlg = UsuariosDialog(self)
         dlg.exec()
         self.casos.definir_ciclo(self.ciclos.ciclo_atual())
+        self.execucao.definir_ciclo(self.ciclos.ciclo_atual())
 
     def _abrir_clientes(self):
         dlg = ClientesDialog(self)
@@ -109,7 +113,8 @@ class MainWindow(QMainWindow):
         self._preencher_seletor_clientes()
         self.ciclos.carregar()
         self.casos.definir_ciclo(self.ciclos.ciclo_atual())
-        self.execucao.carregar_ciclos()
+        # >>> NOVO: execução acompanha o ciclo atual também no recarregar <<<
+        self.execucao.definir_ciclo(self.ciclos.ciclo_atual())
         self.melhorias.carregar()
         self.relatorios.carregar_ciclos()
 
@@ -148,7 +153,8 @@ class MainWindow(QMainWindow):
         elif index == 1:  # Casos do Ciclo
             self.casos.definir_ciclo(self.ciclos.ciclo_atual())
         elif index == 2:  # Execução
-            self.execucao.carregar_ciclos()
+            # >>> CORRIGIDO: antes era carregar_ciclos() (que não existe mais) <<<
+            self.execucao.definir_ciclo(self.ciclos.ciclo_atual())
         elif index == 3:  # Melhorias
             self.melhorias.carregar()
         elif index == 4:  # Relatórios

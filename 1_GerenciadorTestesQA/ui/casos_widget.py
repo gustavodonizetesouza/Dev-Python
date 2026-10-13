@@ -1,8 +1,10 @@
 """Widget de Casos de Teste — mostra os casos do ciclo selecionado na aba Ciclos.
 
-CORREÇÃO: QTextEdit não tem .text() — usa .toPlainText(). A validação anterior
-quebrava com AttributeError e o diálogo nunca aceitava, por isso o caso
-"não salvava". Também grava qualquer erro em erros.log para diagnóstico fácil.
+MÓDULO COMO LIST BOX: o combo de módulo é NÃO editável (dropdown puro).
+ETAPAS DO CASO (teste de processo): botão 'Etapas do Ciclo' no rodapé abre o
+diálogo que vincula as rotinas do ciclo como etapas; o formulário de edição
+também exibe a grade de etapas com vínculo e status.
+Coluna Tarefa em Stretch; coluna Tipo aumentada.
 """
 import os
 import traceback
@@ -10,17 +12,20 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
     QPushButton, QLabel, QComboBox, QLineEdit, QTextEdit, QFormLayout,
     QMessageBox, QDialog, QDialogButtonBox, QHeaderView, QDoubleSpinBox,
+    QInputDialog,
 )
 from PySide6.QtCore import Qt
-from database.models import CasoRepositorio, CicloRepositorio, ModuloRepositorio, UsuarioRepositorio
+from database.models import (
+    CasoRepositorio, CicloRepositorio, ModuloRepositorio, UsuarioRepositorio,
+    CasoEtapaRepositorio, CicloDetalheRepositorio,
+)
 from utils.helpers import TIPOS_OPCOES, PRIORIDADES_OPCOES
 from .modulos_dialog import ModulosDialog
 from .usuarios_dialog import UsuariosDialog
+from .caso_etapas_dialog import CasoEtapasDialog, _carregar_rotinas_combo
 
 
 def _log_erro():
-    """Grava o traceback completo no arquivo erros.log (na raiz do projeto)
-    e também no console. Assim, qualquer erro fica fácil de me enviar."""
     try:
         with open(os.path.join(os.path.dirname(__file__), "..", "erros.log"),
                   "a", encoding="utf-8") as f:
@@ -31,25 +36,42 @@ def _log_erro():
     traceback.print_exc()
 
 
+def _carregar_modulos_no_combo(combo):
+    """Popula o combo (LIST BOX) com os módulos cadastrados. Retorna a lista."""
+    try:
+        modulos = ModuloRepositorio.listar()
+    except Exception:
+        _log_erro()
+        modulos = []
+    combo.clear()
+    combo.addItems([m["nome"] for m in modulos])
+    return modulos
+
+
 class CasoDialog(QDialog):
-    def __init__(self, parent=None, caso=None):
+    def __init__(self, parent=None, caso=None, ciclo_id=None):
         super().__init__(parent)
         self.caso = caso
+        self.ciclo_id = ciclo_id
         self.setWindowTitle("Novo Caso" if not caso else "Editar Caso")
-        self.setMinimumWidth(540)
+        self.setMinimumWidth(560)
 
         form = QFormLayout()
         self.ed_codigo = QLineEdit()
         self.ed_codigo.setPlaceholderText("Deixe vazio para gerar automático")
         self.ed_tarefa = QLineEdit()
         self.ed_descricao = QTextEdit()
-        self.ed_descricao.setFixedHeight(90)
+        self.ed_descricao.setFixedHeight(80)
 
-        # Módulo com botão "+" para cadastrar módulo na hora (recarrega e seleciona o novo)
+        # ---- MÓDULO COMO LIST BOX (NÃO editável: seleciona da lista) ----
         self.cb_modulo = QComboBox()
-        self.cb_modulo.setEditable(True)
-        self.cb_modulo.addItems([m["nome"]
-                                for m in ModuloRepositorio.listar()])
+        try:
+            self.cb_modulo.setPlaceholderText("Selecione um módulo")
+        except AttributeError:
+            pass
+        self.cb_modulo.setToolTip(
+            "Selecione um módulo da lista ou clique em + para cadastrar um novo.")
+        self._modulos_carregados = _carregar_modulos_no_combo(self.cb_modulo)
         linha_modulo = QHBoxLayout()
         linha_modulo.addWidget(self.cb_modulo, 1)
         btn_mod = QPushButton("+")
@@ -64,11 +86,9 @@ class CasoDialog(QDialog):
         self.cb_prioridade = QComboBox()
         self.cb_prioridade.addItems(PRIORIDADES_OPCOES)
 
-        # Responsável com botão "+"
         self.cb_responsavel = QComboBox()
         self.cb_responsavel.addItem("")
-        self.cb_responsavel.addItems([u["nome"]
-                                     for u in UsuarioRepositorio.listar()])
+        self.cb_responsavel.addItems([u["nome"] for u in UsuarioRepositorio.listar()])
         linha_resp = QHBoxLayout()
         linha_resp.addWidget(self.cb_responsavel, 1)
         btn_resp = QPushButton("+")
@@ -86,49 +106,86 @@ class CasoDialog(QDialog):
         form.addRow("Tarefa/Objetivo:", self.ed_tarefa)
         form.addRow("Descrição:", self.ed_descricao)
         form.addRow("Módulo:", linha_modulo)
-        form.addRow("Rotina:", self.ed_rotina)
+        form.addRow("Rotina relacionada:", self.ed_rotina)
         form.addRow("Tipo:", self.cb_tipo)
         form.addRow("Prioridade:", self.cb_prioridade)
         form.addRow("Responsável:", linha_resp)
         form.addRow("Requisito/Compliance:", self.ed_requisito)
         form.addRow("Horas estimadas:", self.sp_horas)
 
-        botoes = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        botoes = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         botoes.accepted.connect(self._validar)
         botoes.rejected.connect(self.reject)
 
         layout = QVBoxLayout(self)
         layout.addLayout(form)
+
+        # ---- SEÇÃO ETAPAS DO CASO (modo edição) ----
+        if caso and caso.get("id") and self.ciclo_id:
+            layout.addWidget(QLabel("Etapas de validação deste caso (teste de processo):"))
+            linha_etp = QHBoxLayout()
+            linha_etp.addWidget(QLabel("Rotina do ciclo:"))
+            self.cb_rotinas_form = QComboBox()
+            _carregar_rotinas_combo(self.cb_rotinas_form, self.ciclo_id)
+            linha_etp.addWidget(self.cb_rotinas_form, 1)
+            btn_vinc = QPushButton("+ Rotina")
+            btn_vinc.clicked.connect(self._vincular_rotina_form)
+            btn_man = QPushButton("+ Manual")
+            btn_man.clicked.connect(self._adicionar_manual_form)
+            btn_sinc = QPushButton("Sincronizar")
+            btn_sinc.clicked.connect(self._sincronizar_form)
+            btn_rem = QPushButton("Remover")
+            btn_rem.clicked.connect(self._remover_etapa_form)
+            linha_etp.addWidget(btn_vinc)
+            linha_etp.addWidget(btn_man)
+            linha_etp.addWidget(btn_sinc)
+            linha_etp.addWidget(btn_rem)
+            layout.addLayout(linha_etp)
+
+            self.grade_etapas = QTableWidget(0, 4)
+            self.grade_etapas.setHorizontalHeaderLabels(
+                ["Ordem", "Etapa (validação)", "Rotina vinculada", "Status"])
+            self.grade_etapas.horizontalHeader().setSectionResizeMode(
+                1, QHeaderView.Stretch)
+            self.grade_etapas.setColumnWidth(0, 55)
+            self.grade_etapas.setColumnWidth(2, 190)
+            self.grade_etapas.setColumnWidth(3, 130)
+            self.grade_etapas.setSelectionBehavior(QTableWidget.SelectRows)
+            self.grade_etapas.setEditTriggers(QTableWidget.NoEditTriggers)
+            self.grade_etapas.setFixedHeight(150)
+            layout.addWidget(self.grade_etapas)
+
+            self.lbl_resumo_etapas = QLabel("")
+            layout.addWidget(self.lbl_resumo_etapas)
+        else:
+            self.grade_etapas = None
+            hint = QLabel(
+                "Dica: após salvar o caso, use o botão 'Etapas do Ciclo' no "
+                "rodapé da aba para vincular as rotinas do ciclo como etapas.")
+            hint.setStyleSheet("color: #666;")
+            layout.addWidget(hint)
+
         layout.addWidget(botoes)
 
         if caso:
             self._preencher(caso)
+        if caso and caso.get("id") and self.ciclo_id:
+            self._carregar_etapas_form()
 
+    # ---------- Módulos / usuários ----------
     def _gerenciar_modulos(self):
         dlg = ModulosDialog(self)
         dlg.exec()
-        try:
-            modulos = ModuloRepositorio.listar()
-        except Exception:
-            _log_erro()
-            QMessageBox.warning(
-                self, "Aviso", "Não foi possível atualizar os módulos. Veja erros.log")
-            return
-        atual = self.cb_modulo.currentText()
-        self.cb_modulo.clear()
-        self.cb_modulo.addItems([m["nome"] for m in modulos])
-        # Se cadastrou um módulo novo, seleciona ele direto
+        self._modulos_carregados = _carregar_modulos_no_combo(self.cb_modulo)
         if getattr(dlg, "ultimo_novo", None):
             idx = self.cb_modulo.findText(dlg.ultimo_novo)
             if idx >= 0:
                 self.cb_modulo.setCurrentIndex(idx)
                 return
+        atual = self.cb_modulo.currentText()
         idx = self.cb_modulo.findText(atual)
         if idx >= 0:
             self.cb_modulo.setCurrentIndex(idx)
-        else:
-            self.cb_modulo.setEditText(atual)
 
     def _gerenciar_usuarios(self):
         dlg = UsuariosDialog(self)
@@ -136,21 +193,130 @@ class CasoDialog(QDialog):
         atual = self.cb_responsavel.currentText()
         self.cb_responsavel.clear()
         self.cb_responsavel.addItem("")
-        self.cb_responsavel.addItems([u["nome"]
-                                     for u in UsuarioRepositorio.listar()])
+        self.cb_responsavel.addItems([u["nome"] for u in UsuarioRepositorio.listar()])
         idx = self.cb_responsavel.findText(atual)
         if idx >= 0:
             self.cb_responsavel.setCurrentIndex(idx)
 
+    # ---------- Etapas do caso (grade no formulário) ----------
+    def _carregar_etapas_form(self):
+        if not self.caso or not self.grade_etapas:
+            return
+        caso_id = self.caso["id"]
+        try:
+            etapas = CasoEtapaRepositorio.listar(caso_id)
+        except Exception:
+            _log_erro()
+            etapas = []
+        self.grade_etapas.setRowCount(len(etapas))
+        for i, e in enumerate(etapas):
+            id_item = QTableWidgetItem(str(e.get("ordem") or i + 1))
+            id_item.setData(Qt.UserRole, e["id"])
+            self.grade_etapas.setItem(i, 0, id_item)
+            self.grade_etapas.setItem(i, 1, QTableWidgetItem(e.get("nome") or ""))
+            rot = ""
+            if e.get("rotina_id"):
+                rot = (f"{e.get('rotina_codigo') or ''} — "
+                       f"{e.get('rotina_nome') or ''}").strip()
+            self.grade_etapas.setItem(i, 2, QTableWidgetItem(rot))
+            cmb = QComboBox()
+            cmb.addItems(CasoEtapaRepositorio.STATUS_OPCOES)
+            idx = cmb.findText(e.get("status") or "Nao iniciada")
+            if idx >= 0:
+                cmb.setCurrentIndex(idx)
+            cmb.currentIndexChanged.connect(
+                lambda text, etid=e["id"]: self._mudar_status_form(etid, text))
+            self.grade_etapas.setCellWidget(i, 3, cmb)
+        total, passou = CasoEtapaRepositorio.resumo(caso_id)
+        self.lbl_resumo_etapas.setText(
+            f"Etapas: {total} | Passou: {passou} "
+            f"| O caso só é aprovado quando TODAS passarem.")
+
+    def _mudar_status_form(self, etapa_id, status):
+        try:
+            CasoEtapaRepositorio.atualizar_status(etapa_id, status)
+        except Exception:
+            _log_erro()
+
+    def _etapa_form_selecionada(self):
+        if not self.grade_etapas:
+            return None
+        linha = self.grade_etapas.currentRow()
+        if linha < 0:
+            return None
+        item = self.grade_etapas.item(linha, 0)
+        return item.data(Qt.UserRole) if item else None
+
+    def _vincular_rotina_form(self):
+        if not self.caso or not self.ciclo_id:
+            return
+        rotina_id = self.cb_rotinas_form.currentData()
+        if not rotina_id:
+            QMessageBox.information(
+                self, "Aviso",
+                "O ciclo não tem rotinas cadastradas.\n"
+                "Cadastre em 'Detalhes do Ciclo → Rotinas'.")
+            return
+        try:
+            ok, msg = CasoEtapaRepositorio.adicionar_de_rotina(
+                self.caso["id"], rotina_id)
+        except Exception:
+            _log_erro()
+            QMessageBox.critical(self, "Erro", "Falha ao vincular. Veja erros.log")
+            return
+        if ok:
+            self._carregar_etapas_form()
+        else:
+            QMessageBox.warning(self, "Atenção", msg)
+
+    def _adicionar_manual_form(self):
+        if not self.caso:
+            return
+        nome, ok = QInputDialog.getText(
+            self, "Etapa Manual", "Descreva a validação desta etapa:")
+        if ok and nome.strip():
+            ok2, msg = CasoEtapaRepositorio.adicionar_manual(self.caso["id"], nome)
+            if ok2:
+                self._carregar_etapas_form()
+            else:
+                QMessageBox.warning(self, "Atenção", msg)
+
+    def _sincronizar_form(self):
+        if not self.caso:
+            return
+        try:
+            alteradas = CasoEtapaRepositorio.sincronizar_status(self.caso["id"])
+        except Exception:
+            _log_erro()
+            QMessageBox.critical(self, "Erro", "Falha ao sincronizar. Veja erros.log")
+            return
+        self._carregar_etapas_form()
+        QMessageBox.information(
+            self, "Sincronizado",
+            f"{alteradas} etapa(s) passaram para 'Passou' conforme as rotinas.")
+
+    def _remover_etapa_form(self):
+        etapa_id = self._etapa_form_selecionada()
+        if not etapa_id:
+            QMessageBox.information(self, "Aviso", "Selecione uma etapa.")
+            return
+        if QMessageBox.question(self, "Confirmar",
+                                "Remover esta etapa do caso?") == QMessageBox.Yes:
+            CasoEtapaRepositorio.remover(etapa_id)
+            self._carregar_etapas_form()
+
+    # ---------- Preencher / validar / dados ----------
     def _preencher(self, caso):
         self.ed_codigo.setText(caso.get("codigo") or "")
         self.ed_tarefa.setText(caso.get("tarefa") or "")
         self.ed_descricao.setPlainText(caso.get("descricao") or "")
-        idx = self.cb_modulo.findText(caso.get("modulo") or "")
+        modulo_caso = (caso.get("modulo") or "").strip()
+        idx = self.cb_modulo.findText(modulo_caso)
         if idx >= 0:
             self.cb_modulo.setCurrentIndex(idx)
-        else:
-            self.cb_modulo.setEditText(caso.get("modulo") or "")
+        elif modulo_caso:
+            self.cb_modulo.addItem(modulo_caso)
+            self.cb_modulo.setCurrentIndex(self.cb_modulo.count() - 1)
         self.ed_rotina.setText(caso.get("rotina") or "")
         idx = self.cb_tipo.findText(caso.get("tipo") or "Funcional")
         if idx >= 0:
@@ -165,18 +331,20 @@ class CasoDialog(QDialog):
         self.sp_horas.setValue(float(caso.get("horas_estimadas") or 0))
 
     def _validar(self):
-        """VALIDAÇÃO CORRIGIDA: QTextEdit usa toPlainText(), não .text()."""
         try:
             descricao = (self.ed_descricao.toPlainText() or "").strip()
             modulo = (self.cb_modulo.currentText() or "").strip()
 
             if not descricao:
-                QMessageBox.warning(self, "Validação",
-                                    "Informe a descrição do caso.")
+                QMessageBox.warning(self, "Validação", "Informe a descrição do caso.")
                 return
             if not modulo:
-                QMessageBox.warning(self, "Validação",
-                                    "Informe o módulo do caso.")
+                if self.cb_modulo.count() == 0:
+                    QMessageBox.warning(
+                        self, "Validação",
+                        "Nenhum módulo cadastrado.\nClique em + para criar o primeiro módulo.")
+                else:
+                    QMessageBox.warning(self, "Validação", "Selecione um módulo na lista.")
                 return
             self.accept()
         except Exception:
@@ -210,8 +378,7 @@ class CasosWidget(QWidget):
     def _build_ui(self):
         layout = QVBoxLayout(self)
 
-        self.lbl_ciclo = QLabel(
-            "Selecione um ciclo na aba 'Ciclos' para ver os casos.")
+        self.lbl_ciclo = QLabel("Selecione um ciclo na aba 'Ciclos' para ver os casos.")
         layout.addWidget(self.lbl_ciclo)
 
         topo = QHBoxLayout()
@@ -225,7 +392,6 @@ class CasosWidget(QWidget):
         self.cb_filtro_tipo.addItem("Todos")
         self.cb_filtro_tipo.addItems(TIPOS_OPCOES)
         self.cb_filtro_tipo.currentIndexChanged.connect(self.carregar)
-        topo.addWidget(self.cb_filtro_tipo)
         topo.addStretch()
         layout.addLayout(topo)
 
@@ -236,9 +402,10 @@ class CasosWidget(QWidget):
         self.tabela.setColumnWidth(0, 45)
         self.tabela.setColumnWidth(1, 110)
         self.tabela.setColumnWidth(3, 100)
-        self.tabela.setColumnWidth(4, 90)
+        self.tabela.setColumnWidth(4, 150)   # Tipo (aumentada)
         self.tabela.setColumnWidth(5, 80)
         self.tabela.setColumnWidth(6, 110)
+        self.tabela.setColumnWidth(7, 110)
         self.tabela.setSelectionBehavior(QTableWidget.SelectRows)
         self.tabela.setEditTriggers(QTableWidget.NoEditTriggers)
         self.tabela.cellDoubleClicked.connect(self._abrir_edicao_linha)
@@ -247,15 +414,32 @@ class CasosWidget(QWidget):
         botoes = QHBoxLayout()
         btn_novo = QPushButton("Novo Caso")
         btn_editar = QPushButton("Editar")
+        btn_etapas = QPushButton("Etapas do Ciclo...")
         btn_excluir = QPushButton("Excluir")
         btn_novo.clicked.connect(self.novo)
         btn_editar.clicked.connect(self.editar)
+        btn_etapas.clicked.connect(self._abrir_etapas_ciclo)
+        btn_etapas.setToolTip(
+            "Vincular as rotinas do ciclo como etapas de validação do caso selecionado.")
         btn_excluir.clicked.connect(self.excluir)
         botoes.addWidget(btn_novo)
         botoes.addWidget(btn_editar)
+        botoes.addWidget(btn_etapas)
         botoes.addWidget(btn_excluir)
         botoes.addStretch()
         layout.addLayout(botoes)
+
+    def _abrir_etapas_ciclo(self):
+        caso_id = self._selecionado()
+        if not caso_id:
+            QMessageBox.information(self, "Aviso", "Selecione um caso.")
+            return
+        if not self.ciclo_id:
+            QMessageBox.information(self, "Aviso",
+                                    "Selecione um ciclo na aba 'Ciclos'.")
+            return
+        dlg = CasoEtapasDialog(self, caso_id=caso_id, ciclo_id=self.ciclo_id)
+        dlg.exec()
 
     def definir_ciclo(self, ciclo_id):
         self.ciclo_id = ciclo_id
@@ -267,8 +451,7 @@ class CasosWidget(QWidget):
             nome = ciclo["nome"] if ciclo else "?"
             self.lbl_ciclo.setText(f"Ciclo: {nome} — casos abaixo.")
             try:
-                modulos = sorted({c["modulo"]
-                                 for c in CasoRepositorio.listar(ciclo_id)})
+                modulos = sorted({c["modulo"] for c in CasoRepositorio.listar(ciclo_id)})
             except Exception:
                 modulos = []
             self.cb_filtro_modulo.blockSignals(True)
@@ -277,8 +460,7 @@ class CasosWidget(QWidget):
             self.cb_filtro_modulo.addItems(modulos)
             self.cb_filtro_modulo.blockSignals(False)
         else:
-            self.lbl_ciclo.setText(
-                "Selecione um ciclo na aba 'Ciclos' para ver os casos.")
+            self.lbl_ciclo.setText("Selecione um ciclo na aba 'Ciclos' para ver os casos.")
             self.tabela.setRowCount(0)
         self.carregar()
 
@@ -290,8 +472,7 @@ class CasosWidget(QWidget):
             casos = CasoRepositorio.listar(self.ciclo_id)
         except Exception:
             _log_erro()
-            QMessageBox.critical(
-                self, "Erro", "Não foi possível carregar os casos. Veja erros.log")
+            QMessageBox.critical(self, "Erro", "Não foi possível carregar os casos. Veja erros.log")
             return
 
         filtro_modulo = self.cb_filtro_modulo.currentText()
@@ -310,12 +491,9 @@ class CasosWidget(QWidget):
             self.tabela.setItem(i, 2, QTableWidgetItem(c.get("tarefa") or ""))
             self.tabela.setItem(i, 3, QTableWidgetItem(c.get("modulo") or ""))
             self.tabela.setItem(i, 4, QTableWidgetItem(c.get("tipo") or ""))
-            self.tabela.setItem(i, 5, QTableWidgetItem(
-                c.get("prioridade") or ""))
-            self.tabela.setItem(i, 6, QTableWidgetItem(
-                c.get("responsavel") or ""))
-            self.tabela.setItem(i, 7, QTableWidgetItem(
-                c.get("status_exec") or ""))
+            self.tabela.setItem(i, 5, QTableWidgetItem(c.get("prioridade") or ""))
+            self.tabela.setItem(i, 6, QTableWidgetItem(c.get("responsavel") or ""))
+            self.tabela.setItem(i, 7, QTableWidgetItem(c.get("status_exec") or ""))
 
     def _selecionado(self):
         linha = self.tabela.currentRow()
@@ -329,15 +507,14 @@ class CasosWidget(QWidget):
 
     def novo(self):
         if not self.ciclo_id:
-            QMessageBox.information(
-                self, "Aviso", "Selecione um ciclo na aba 'Ciclos' primeiro.")
+            QMessageBox.information(self, "Aviso", "Selecione um ciclo na aba 'Ciclos' primeiro.")
             return
-        dlg = CasoDialog(self)
+        dlg = CasoDialog(self, caso=None, ciclo_id=self.ciclo_id)
         if dlg.exec():
             try:
                 resultado = CasoRepositorio.inserir(self.ciclo_id, dlg.dados())
                 codigo = resultado[1] if isinstance(resultado, tuple) else ""
-                self.definir_ciclo(self.ciclo_id)  # SEMPRE recarrega a lista
+                self.definir_ciclo(self.ciclo_id)
                 QMessageBox.information(
                     self, "Sucesso",
                     f"Caso salvo com sucesso ({codigo or 'código automático'}).")
@@ -352,7 +529,7 @@ class CasosWidget(QWidget):
             QMessageBox.information(self, "Aviso", "Selecione um caso.")
             return
         caso = CasoRepositorio.obter(caso_id)
-        dlg = CasoDialog(self, caso)
+        dlg = CasoDialog(self, caso, self.ciclo_id)
         if dlg.exec():
             try:
                 CasoRepositorio.atualizar(caso_id, dlg.dados())
@@ -375,5 +552,4 @@ class CasosWidget(QWidget):
                 self.definir_ciclo(self.ciclo_id)
             except Exception:
                 _log_erro()
-                QMessageBox.critical(
-                    self, "Erro", "Não foi possível excluir. Veja erros.log")
+                QMessageBox.critical(self, "Erro", "Não foi possível excluir. Veja erros.log")
