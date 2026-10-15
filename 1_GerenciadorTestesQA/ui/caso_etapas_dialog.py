@@ -1,11 +1,8 @@
 """Diálogo 'Etapas do Ciclo' — vincula as rotinas do ciclo como etapas do caso.
 
-NOVA VERSÃO (prática e funcional):
-- Lista as rotinas do ciclo com CHECKBOXES: código + nome + status;
-- Marque as rotinas que o caso atravessa e clique 'Vincular Selecionadas';
-- Cada rotina vira uma etapa, herdando o status
-  (rotina Concluída => etapa 'Passou'; senão 'Não iniciada');
-- 'Sincronizar com Rotinas' aplica a regra automaticamente.
+- Seção 1: lista de rotinas do ciclo com checkboxes (marcar e 'Vincular Selecionadas');
+- Seção 2: grade de etapas já vinculadas — permite VINCULAR uma rotina a uma
+  etapa manual selecionada (validação técnica) e DESVINCULAR quando quiser.
 """
 import os
 import traceback
@@ -50,8 +47,7 @@ def _rotina_label(r):
 
 
 def _carregar_rotinas_combo(combo, ciclo_id):
-    """Popula um QComboBox com as rotinas do ciclo (código + nome + status).
-    Mantida para compatibilidade com o formulário de edição do caso."""
+    """Popula um QComboBox com as rotinas do ciclo (código + nome + status)."""
     combo.clear()
     if not ciclo_id:
         return
@@ -62,6 +58,7 @@ def _carregar_rotinas_combo(combo, ciclo_id):
         rotinas = []
     for r in rotinas:
         combo.addItem(_rotina_label(r), r["id"])
+    return rotinas
 
 
 def _listar_rotinas(ciclo_id):
@@ -80,7 +77,7 @@ class CasoEtapasDialog(QDialog):
         self.caso_id = caso_id
         self.ciclo_id = ciclo_id
         self.setWindowTitle("Etapas do Caso — vinculadas às rotinas do ciclo")
-        self.resize(780, 580)
+        self.resize(790, 640)
 
         caso = None
         if caso_id:
@@ -96,9 +93,9 @@ class CasoEtapasDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel(f"Caso selecionado: <b>{titulo}</b>"))
 
-        # ---- SEÇÃO 1: rotinas do ciclo (checkboxes) ----
+        # ---------- SEÇÃO 1: rotinas do ciclo (checkboxes) ----------
         layout.addWidget(QLabel(
-            "<b>1. Rotinas do ciclo</b> — marque as que fazem parte deste caso "
+            "<b>1. Rotinas do ciclo</b> — marque as que farão parte deste caso "
             "e clique em 'Vincular Selecionadas':"))
         self.lista_rotinas = QListWidget()
         self.lista_rotinas.setSelectionMode(QListWidget.ExtendedSelection)
@@ -125,8 +122,9 @@ class CasoEtapasDialog(QDialog):
         self.lbl_rotinas_vazias.setWordWrap(True)
         layout.addWidget(self.lbl_rotinas_vazias)
 
-        # ---- SEÇÃO 2: etapas já vinculadas ----
-        layout.addWidget(QLabel("<b>2. Etapas já vinculadas a este caso</b>:"))
+        # ---------- SEÇÃO 2: etapas já vinculadas ----------
+        layout.addWidget(QLabel("<b>2. Etapas já vinculadas a este caso</b> "
+                                "(selecione uma etapa manual e vincule a rotina):"))
         self.grade = QTableWidget(0, 4)
         self.grade.setHorizontalHeaderLabels(
             ["Ordem", "Etapa (validação)", "Rotina vinculada", "Status"])
@@ -137,6 +135,23 @@ class CasoEtapasDialog(QDialog):
         self.grade.setSelectionBehavior(QTableWidget.SelectRows)
         self.grade.setEditTriggers(QTableWidget.NoEditTriggers)
         layout.addWidget(self.grade, 3)
+
+        # Linha: vincular rotina à etapa SELECIONADA (novo — resolve etapa manual)
+        linha_vinc = QHBoxLayout()
+        linha_vinc.addWidget(QLabel("Vincular rotina à etapa selecionada:"))
+        self.cb_rotinas_etapa = QComboBox()
+        _carregar_rotinas_combo(self.cb_rotinas_etapa, ciclo_id)
+        linha_vinc.addWidget(self.cb_rotinas_etapa, 1)
+        btn_vinc_etapa = QPushButton("Vincular na Etapa")
+        btn_vinc_etapa.setToolTip(
+            "Associa a rotina escolhida à etapa selecionada na grade (inclusive etapa manual).")
+        btn_vinc_etapa.clicked.connect(self._vincular_rotina_na_etapa)
+        btn_desc = QPushButton("Desvincular")
+        btn_desc.setToolTip("Remove o vínculo da etapa selecionada com a rotina.")
+        btn_desc.clicked.connect(self._desvincular_rotina_etapa)
+        linha_vinc.addWidget(btn_vinc_etapa)
+        linha_vinc.addWidget(btn_desc)
+        layout.addLayout(linha_vinc)
 
         linha_b = QHBoxLayout()
         btn_manual = QPushButton("Adicionar Manual")
@@ -175,6 +190,8 @@ class CasoEtapasDialog(QDialog):
             item.setCheckState(Qt.Unchecked)
             item.setData(Qt.UserRole, r["id"])
             self.lista_rotinas.addItem(item)
+        # Também atualiza o combo de vínculo à etapa selecionada
+        _carregar_rotinas_combo(self.cb_rotinas_etapa, self.ciclo_id)
 
     def _rotinas_marcadas(self):
         marcadas = []
@@ -273,11 +290,55 @@ class CasoEtapasDialog(QDialog):
         item = self.grade.item(linha, 0)
         return item.data(Qt.UserRole) if item else None
 
+    def _vincular_rotina_na_etapa(self):
+        """Vincula a rotina escolhida no combo à etapa selecionada (manual ou não)."""
+        etapa_id = self._etapa_selecionada()
+        if not etapa_id:
+            QMessageBox.information(
+                self, "Aviso", "Selecione uma etapa na grade (2) primeiro.")
+            return
+        rotina_id = self.cb_rotinas_etapa.currentData()
+        if not rotina_id:
+            QMessageBox.information(
+                self, "Aviso",
+                "O ciclo não tem rotinas disponíveis.\n"
+                "Cadastre em 'Detalhes do Ciclo → Rotinas'.")
+            return
+        try:
+            ok, msg = CasoEtapaRepositorio.vincular_rotina(etapa_id, rotina_id)
+        except Exception:
+            _log_erro()
+            QMessageBox.critical(self, "Erro", "Falha ao vincular. Veja erros.log")
+            return
+        self._carregar_etapas()
+        if ok:
+            QMessageBox.information(self, "Sucesso", msg)
+        else:
+            QMessageBox.warning(self, "Atenção", msg)
+
+    def _desvincular_rotina_etapa(self):
+        etapa_id = self._etapa_selecionada()
+        if not etapa_id:
+            QMessageBox.information(
+                self, "Aviso", "Selecione uma etapa na grade (2) primeiro.")
+            return
+        if QMessageBox.question(
+                self, "Confirmar",
+                "Desvincular a rotina desta etapa? A etapa manual será mantida.") \
+                == QMessageBox.Yes:
+            try:
+                CasoEtapaRepositorio.desvincular_rotina(etapa_id)
+            except Exception:
+                _log_erro()
+                QMessageBox.critical(self, "Erro", "Falha ao desvincular. Veja erros.log")
+                return
+            self._carregar_etapas()
+
     def _adicionar_manual(self):
         if not self.caso_id:
             return
         nome, ok = QInputDialog.getText(
-            self, "Etapa Manual", "Descreva a validação desta etapa:")
+            self, "Etapa Manual", "Descreva a validação técnica desta etapa:")
         if ok and nome.strip():
             try:
                 ok2, msg = CasoEtapaRepositorio.adicionar_manual(self.caso_id, nome)

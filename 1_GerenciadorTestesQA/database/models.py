@@ -52,8 +52,7 @@ class ClienteRepositorio:
     def excluir(cliente_id):
         conn = Database.get_config_connection()
         cur = conn.cursor()
-        cur.execute(
-            "SELECT COUNT(*) FROM conexoes WHERE cliente_id=?", (cliente_id,))
+        cur.execute("SELECT COUNT(*) FROM conexoes WHERE cliente_id=?", (cliente_id,))
         if cur.fetchone()[0] > 0:
             conn.close()
             return False
@@ -79,8 +78,7 @@ class ModuloRepositorio:
         conn = Database.get_connection()
         cur = conn.cursor()
         try:
-            cur.execute("INSERT INTO modulos (nome) VALUES (?)",
-                        (nome.strip().upper(),))
+            cur.execute("INSERT INTO modulos (nome) VALUES (?)", (nome.strip().upper(),))
             conn.commit()
             novo_id = cur.lastrowid
             conn.close()
@@ -111,8 +109,7 @@ class ModuloRepositorio:
             if cur.fetchone():
                 conn.close()
                 return False, f"Já existe um módulo com o nome '{novo_nome}'."
-            cur.execute("UPDATE modulos SET nome = ? WHERE id = ?",
-                        (novo_nome, modulo_id))
+            cur.execute("UPDATE modulos SET nome = ? WHERE id = ?", (novo_nome, modulo_id))
             cur.execute("UPDATE casos_teste SET modulo = ? WHERE modulo = ?",
                         (novo_nome, antigo_nome))
             cur.execute("UPDATE melhorias SET modulo = ? WHERE modulo = ?",
@@ -134,8 +131,7 @@ class ModuloRepositorio:
         if not row:
             conn.close()
             return False
-        cur.execute(
-            "SELECT COUNT(*) FROM casos_teste WHERE modulo = ?", (row[0],))
+        cur.execute("SELECT COUNT(*) FROM casos_teste WHERE modulo = ?", (row[0],))
         if cur.fetchone()[0] > 0:
             conn.close()
             return False
@@ -205,8 +201,7 @@ class TipoCicloRepositorio:
         conn = Database.get_connection()
         cur = conn.cursor()
         try:
-            cur.execute("INSERT INTO tipos_ciclo (nome) VALUES (?)",
-                        (nome.strip().upper(),))
+            cur.execute("INSERT INTO tipos_ciclo (nome) VALUES (?)", (nome.strip().upper(),))
             conn.commit()
             novo_id = cur.lastrowid
             conn.close()
@@ -223,8 +218,7 @@ class TipoCicloRepositorio:
         conn = Database.get_connection()
         cur = conn.cursor()
         try:
-            cur.execute(
-                "SELECT nome FROM tipos_ciclo WHERE id = ?", (tipo_id,))
+            cur.execute("SELECT nome FROM tipos_ciclo WHERE id = ?", (tipo_id,))
             row = cur.fetchone()
             if not row:
                 conn.close()
@@ -238,8 +232,7 @@ class TipoCicloRepositorio:
             if cur.fetchone():
                 conn.close()
                 return False, f"Já existe um tipo com o nome '{novo_nome}'."
-            cur.execute(
-                "UPDATE tipos_ciclo SET nome = ? WHERE id = ?", (novo_nome, tipo_id))
+            cur.execute("UPDATE tipos_ciclo SET nome = ? WHERE id = ?", (novo_nome, tipo_id))
             cur.execute("UPDATE ciclos SET tipo = ? WHERE tipo = ?",
                         (novo_nome, antigo_nome))
             conn.commit()
@@ -271,7 +264,6 @@ class TipoCicloRepositorio:
 
 class CicloRepositorio:
     """Ciclos — a unidade completa de trabalho."""
-
     STATUS_OPCOES = ["Planejado", "Em andamento", "Concluído", "Cancelado"]
 
     @staticmethod
@@ -311,8 +303,7 @@ class CicloRepositorio:
                                 status, responsavel, custo_orcado)
             VALUES (?,?,?,?,?,?,?,?,?)
         """, (dados["nome"], dados.get("tipo", "Virada de Versão"), dados.get("versao"),
-              dados.get("ano"), dados.get(
-                  "data_inicio"), dados.get("data_fim"),
+              dados.get("ano"), dados.get("data_inicio"), dados.get("data_fim"),
               dados.get("status", "Planejado"), dados.get("responsavel"),
               dados.get("custo_orcado", 0)))
         conn.commit()
@@ -328,8 +319,7 @@ class CicloRepositorio:
             UPDATE ciclos SET nome=?, tipo=?, versao=?, ano=?, data_inicio=?, data_fim=?,
                 status=?, responsavel=?, custo_orcado=? WHERE id=?
         """, (dados["nome"], dados.get("tipo", "Virada de Versão"), dados.get("versao"),
-              dados.get("ano"), dados.get(
-                  "data_inicio"), dados.get("data_fim"),
+              dados.get("ano"), dados.get("data_inicio"), dados.get("data_fim"),
               dados.get("status", "Planejado"), dados.get("responsavel"),
               dados.get("custo_orcado", 0), ciclo_id))
         conn.commit()
@@ -359,14 +349,11 @@ class CicloRepositorio:
                                 status, responsavel, custo_orcado)
             VALUES (?,?,?,?,?,?,?,?,?)
         """, (f"{origem.get('nome')} (cópia)", origem.get("tipo") or "Virada de Versão",
-              origem.get("versao"), origem.get(
-                  "ano"), origem.get("data_inicio"),
+              origem.get("versao"), origem.get("ano"), origem.get("data_inicio"),
               origem.get("data_fim"), "Planejado", origem.get("responsavel"),
               origem.get("custo_orcado") or 0))
         novo_id = cur.lastrowid
-
-        casos = cur.execute(
-            "SELECT * FROM casos_teste WHERE ciclo_id=?", (ciclo_id,)).fetchall()
+        casos = cur.execute("SELECT * FROM casos_teste WHERE ciclo_id=?", (ciclo_id,)).fetchall()
         for c in casos:
             cur.execute("""
                 INSERT INTO casos_teste
@@ -376,10 +363,8 @@ class CicloRepositorio:
             """, (novo_id, c["codigo"], c["tarefa"], c["descricao"], c["modulo"],
                   c["rotina"], c["tipo"], c["prioridade"], c["responsavel"],
                   c["requisito_compliance"], "Nao iniciado", 0, c["horas_estimadas"] or 0))
-
         mapa_etapa = {}
-        for e in cur.execute(
-                "SELECT * FROM ciclo_etapas WHERE ciclo_id=?", (ciclo_id,)).fetchall():
+        for e in cur.execute("SELECT * FROM ciclo_etapas WHERE ciclo_id=?", (ciclo_id,)).fetchall():
             cur.execute("""
                 INSERT INTO ciclo_etapas (ciclo_id, nome, descricao, ordem, responsavel,
                                           status, percentual, data_prevista_inicio,
@@ -389,9 +374,7 @@ class CicloRepositorio:
                   e["responsavel"], "Nao iniciada", 0, e["data_prevista_inicio"],
                   e["data_prevista_fim"], e["custo_orcado"] or 0))
             mapa_etapa[e["id"]] = cur.lastrowid
-
-        for r in cur.execute(
-                "SELECT * FROM ciclo_rotinas WHERE ciclo_id=?", (ciclo_id,)).fetchall():
+        for r in cur.execute("SELECT * FROM ciclo_rotinas WHERE ciclo_id=?", (ciclo_id,)).fetchall():
             cur.execute("""
                 INSERT INTO ciclo_rotinas (codigo, ciclo_id, etapa_id, nome, descricao,
                                            status, responsavel, horas_estimadas)
@@ -399,7 +382,6 @@ class CicloRepositorio:
             """, (f"{r['codigo']}-C{novo_id}", novo_id, mapa_etapa.get(r["etapa_id"]),
                   r["nome"], r["descricao"], "Pendente", r["responsavel"],
                   r["horas_estimadas"] or 0))
-
         conn.commit()
         conn.close()
         return novo_id, f"Ciclo copiado! {len(casos)} caso(s), etapas e rotinas reaproveitados (execução reiniciada)."
@@ -421,8 +403,7 @@ class CicloRepositorio:
     def contar_casos(ciclo_id):
         conn = Database.get_connection()
         cur = conn.cursor()
-        cur.execute(
-            "SELECT COUNT(*) FROM casos_teste WHERE ciclo_id=?", (ciclo_id,))
+        cur.execute("SELECT COUNT(*) FROM casos_teste WHERE ciclo_id=?", (ciclo_id,))
         total = cur.fetchone()[0]
         conn.close()
         return total
@@ -479,8 +460,7 @@ class CasoRepositorio:
     def _proximo_codigo(ciclo_id):
         conn = Database.get_connection()
         cur = conn.cursor()
-        cur.execute(
-            "SELECT COUNT(*) FROM casos_teste WHERE ciclo_id=?", (ciclo_id,))
+        cur.execute("SELECT COUNT(*) FROM casos_teste WHERE ciclo_id=?", (ciclo_id,))
         n = cur.fetchone()[0] + 1
         conn.close()
         return f"TC{ciclo_id:02d}-{n:03d}"
@@ -489,8 +469,7 @@ class CasoRepositorio:
     def listar(ciclo_id):
         conn = Database.get_connection()
         cur = conn.cursor()
-        cur.execute(
-            "SELECT * FROM casos_teste WHERE ciclo_id = ? ORDER BY id", (ciclo_id,))
+        cur.execute("SELECT * FROM casos_teste WHERE ciclo_id = ? ORDER BY id", (ciclo_id,))
         rows = [dict(r) for r in cur.fetchall()]
         conn.close()
         return rows
@@ -508,8 +487,7 @@ class CasoRepositorio:
     def inserir(ciclo_id, dados):
         conn = Database.get_connection()
         cur = conn.cursor()
-        codigo = dados.get(
-            "codigo") or CasoRepositorio._proximo_codigo(ciclo_id)
+        codigo = dados.get("codigo") or CasoRepositorio._proximo_codigo(ciclo_id)
         cur.execute("""
             INSERT INTO casos_teste (ciclo_id, codigo, tarefa, descricao, modulo, rotina,
                                      tipo, prioridade, responsavel, requisito_compliance,
@@ -550,11 +528,8 @@ class CasoRepositorio:
 
 class CicloDetalheRepositorio:
     """Etapas, rotinas, horas, custos e KPIs de gestão de um ciclo."""
-
-    STATUS_ETAPA_OPCOES = ["Não iniciada",
-                           "Em andamento", "Concluída", "Bloqueada"]
-    STATUS_ROTINA_OPCOES = ["Pendente",
-                            "Em andamento", "Concluída", "Cancelada"]
+    STATUS_ETAPA_OPCOES = ["Não iniciada", "Em andamento", "Concluída", "Bloqueada"]
+    STATUS_ROTINA_OPCOES = ["Pendente", "Em andamento", "Concluída", "Cancelada"]
     CATEGORIAS_CUSTO = ["Terceiros", "Licenças", "Despesas", "Outros"]
 
     @staticmethod
@@ -606,8 +581,7 @@ class CicloDetalheRepositorio:
             WHERE id=?
         """, (dados["nome"], dados.get("descricao"), dados.get("responsavel"),
               dados.get("status", "Não iniciada"), dados.get("percentual", 0),
-              dados.get("data_prevista_inicio"), dados.get(
-                  "data_prevista_fim"),
+              dados.get("data_prevista_inicio"), dados.get("data_prevista_fim"),
               dados.get("custo_orcado", 0), etapa_id))
         conn.commit()
         conn.close()
@@ -616,12 +590,9 @@ class CicloDetalheRepositorio:
     def excluir_etapa(etapa_id):
         conn = Database.get_connection()
         cur = conn.cursor()
-        cur.execute(
-            "UPDATE ciclo_rotinas SET etapa_id=NULL WHERE etapa_id=?", (etapa_id,))
-        cur.execute(
-            "UPDATE ciclo_horas SET etapa_id=NULL WHERE etapa_id=?", (etapa_id,))
-        cur.execute(
-            "UPDATE ciclo_custos SET etapa_id=NULL WHERE etapa_id=?", (etapa_id,))
+        cur.execute("UPDATE ciclo_rotinas SET etapa_id=NULL WHERE etapa_id=?", (etapa_id,))
+        cur.execute("UPDATE ciclo_horas SET etapa_id=NULL WHERE etapa_id=?", (etapa_id,))
+        cur.execute("UPDATE ciclo_custos SET etapa_id=NULL WHERE etapa_id=?", (etapa_id,))
         cur.execute("DELETE FROM ciclo_etapas WHERE id=?", (etapa_id,))
         conn.commit()
         conn.close()
@@ -646,8 +617,7 @@ class CicloDetalheRepositorio:
     def _proximo_codigo_rotina(ciclo_id):
         conn = Database.get_connection()
         cur = conn.cursor()
-        cur.execute(
-            "SELECT COUNT(*) FROM ciclo_rotinas WHERE ciclo_id=?", (ciclo_id,))
+        cur.execute("SELECT COUNT(*) FROM ciclo_rotinas WHERE ciclo_id=?", (ciclo_id,))
         n = cur.fetchone()[0] + 1
         conn.close()
         return f"ROT{ciclo_id:02d}-{n:03d}"
@@ -706,8 +676,7 @@ class CicloDetalheRepositorio:
         if rotina.get("status") != "Concluída":
             conn.close()
             return False, "A rotina precisa estar 'Concluída' para gerar um caso de teste.", None
-        ciclo = cur.execute("SELECT * FROM ciclos WHERE id=?",
-                            (rotina["ciclo_id"],)).fetchone()
+        ciclo = cur.execute("SELECT * FROM ciclos WHERE id=?", (rotina["ciclo_id"],)).fetchone()
         conn.close()
         modulo = ciclo["nome"] if ciclo else "Geral"
         caso_id, codigo = CasoRepositorio.inserir(rotina["ciclo_id"], {
@@ -721,8 +690,7 @@ class CicloDetalheRepositorio:
         })
         conn = Database.get_connection()
         cur = conn.cursor()
-        cur.execute("UPDATE ciclo_rotinas SET caso_teste_id=? WHERE id=?",
-                    (caso_id, rotina_id))
+        cur.execute("UPDATE ciclo_rotinas SET caso_teste_id=? WHERE id=?", (caso_id, rotina_id))
         conn.commit()
         conn.close()
         return True, f"Caso de teste {codigo} criado no ciclo a partir da rotina.", caso_id
@@ -805,7 +773,6 @@ class CicloDetalheRepositorio:
     def kpis_gestao(ciclo_id):
         conn = Database.get_connection()
         cur = conn.cursor()
-
         cur.execute("""
             SELECT COUNT(*) AS total,
                    SUM(CASE WHEN status IN ('Concluida','Concluída') THEN 1 ELSE 0 END) AS concluidas,
@@ -813,7 +780,6 @@ class CicloDetalheRepositorio:
             FROM ciclo_etapas WHERE ciclo_id = ?
         """, (ciclo_id,))
         e = cur.fetchone()
-
         cur.execute("""
             SELECT COUNT(*) AS total,
                    SUM(CASE WHEN status IN ('Concluida','Concluída') THEN 1 ELSE 0 END) AS concluidas,
@@ -821,29 +787,24 @@ class CicloDetalheRepositorio:
             FROM ciclo_rotinas WHERE ciclo_id = ?
         """, (ciclo_id,))
         r = cur.fetchone()
-
         cur.execute("""
             SELECT COALESCE(SUM(horas), 0) AS horas,
                    COALESCE(SUM(horas * custo_hora), 0) AS custo_horas
             FROM ciclo_horas WHERE ciclo_id = ?
         """, (ciclo_id,))
         h = cur.fetchone()
-
         cur.execute("""
             SELECT COALESCE(SUM(valor), 0) AS total FROM ciclo_custos WHERE ciclo_id = ?
         """, (ciclo_id,))
         c = cur.fetchone()
-
         cur.execute("SELECT custo_orcado FROM ciclos WHERE id = ?", (ciclo_id,))
         p = cur.fetchone()
         conn.close()
-
         horas_reais = h[0] or 0
         custo_horas = h[1] or 0
         custo_adicionais = c[0] or 0
         custo_real = round(custo_horas + custo_adicionais, 2)
         custo_orcado = p[0] or 0
-
         return {
             "etapas_total": e[0] or 0,
             "etapas_concluidas": e[1] or 0,
@@ -862,8 +823,7 @@ class CicloDetalheRepositorio:
 
 
 class MelhoriaRepositorio:
-    STATUS_OPCOES = ["Proposta", "Em análise",
-                     "Aprovada", "Implementada", "Recusada"]
+    STATUS_OPCOES = ["Proposta", "Em análise", "Aprovada", "Implementada", "Recusada"]
 
     @staticmethod
     def _proximo_codigo():
@@ -912,10 +872,8 @@ class MelhoriaRepositorio:
                  ciclo_id, caso_origem_id, observacoes)
             VALUES (?,?,?,?,?,?,?,?,?,?)
         """, (codigo, dados["titulo"], dados.get("descricao"), dados.get("modulo"),
-              dados.get("prioridade", "Media"), dados.get(
-                  "status", "Proposta"),
-              dados.get("responsavel"), dados.get(
-                  "ciclo_id"), dados.get("caso_origem_id"),
+              dados.get("prioridade", "Media"), dados.get("status", "Proposta"),
+              dados.get("responsavel"), dados.get("ciclo_id"), dados.get("caso_origem_id"),
               dados.get("observacoes")))
         conn.commit()
         novo_id = cur.lastrowid
@@ -935,10 +893,8 @@ class MelhoriaRepositorio:
                 data_implementacao=COALESCE(?, data_implementacao)
             WHERE id=?
         """, (dados["titulo"], dados.get("descricao"), dados.get("modulo"),
-              dados.get("prioridade", "Media"), dados.get(
-                  "status", "Proposta"),
-              dados.get("responsavel"), dados.get(
-                  "observacoes"), dados.get("ciclo_id"),
+              dados.get("prioridade", "Media"), dados.get("status", "Proposta"),
+              dados.get("responsavel"), dados.get("observacoes"), dados.get("ciclo_id"),
               data_impl, melhoria_id))
         conn.commit()
         conn.close()
@@ -1011,8 +967,7 @@ class ConexaoRepositorio:
         if cliente_id is None:
             cliente = Database._get_cliente_ativo()
             cliente_id = cliente.get("id") if cliente else None
-        cur.execute(
-            "SELECT COUNT(*) FROM conexoes WHERE cliente_id=?", (cliente_id,))
+        cur.execute("SELECT COUNT(*) FROM conexoes WHERE cliente_id=?", (cliente_id,))
         tem_conexao = cur.fetchone()[0] > 0
         padrao = 0 if tem_conexao else 1
         cur.execute("""
@@ -1053,12 +1008,15 @@ class ConexaoRepositorio:
         cur.execute("DELETE FROM conexoes WHERE id=?", (conexao_id,))
         conn.commit()
         conn.close()
+
+
 class CasoEtapaRepositorio:
     """Etapas de validação de um caso de teste (teste de processo).
 
     Cada etapa pode estar VINCULADA a uma rotina do ciclo (herda o status dela)
-    ou ser MANUAL (checklist livre). Regra: se a rotina vinculada estiver
-    'Concluída', a etapa vira 'Passou'.
+    ou ser MANUAL (checklist livre). A MESMA rotina pode ser vinculada a VÁRIAS
+    etapas do mesmo caso (ex.: exportação PDF e CSV do mesmo pedido).
+    Regra: se a rotina vinculada estiver 'Concluída', a etapa vira 'Passou'.
     """
 
     STATUS_OPCOES = ["Nao iniciada", "Em andamento", "Passou", "Falhou"]
@@ -1082,7 +1040,11 @@ class CasoEtapaRepositorio:
 
     @staticmethod
     def adicionar_de_rotina(caso_id, rotina_id):
-        """Vincula uma rotina do ciclo como etapa, herdando o status da rotina."""
+        """Vincula uma rotina do ciclo como etapa, herdando o status da rotina.
+
+        Permite a MESMA rotina em VÁRIAS etapas do caso (ex.: rotina
+        'Pedido de Venda' com etapa 'Exportação PDF' e etapa 'Exportação CSV').
+        """
         conn = Database.get_connection()
         cur = conn.cursor()
         cur.execute("SELECT * FROM ciclo_rotinas WHERE id=?", (rotina_id,))
@@ -1090,11 +1052,6 @@ class CasoEtapaRepositorio:
         if not rot:
             conn.close()
             return False, "Rotina não encontrada no ciclo."
-        cur.execute("SELECT id FROM caso_etapas WHERE caso_id=? AND rotina_id=?",
-                    (caso_id, rotina_id))
-        if cur.fetchone():
-            conn.close()
-            return False, "Esta rotina já está vinculada a este caso."
         cur.execute("SELECT COALESCE(MAX(ordem),0)+1 FROM caso_etapas WHERE caso_id=?",
                     (caso_id,))
         ordem = cur.fetchone()[0]
@@ -1125,6 +1082,43 @@ class CasoEtapaRepositorio:
         novo_id = cur.lastrowid
         conn.close()
         return True, "Etapa manual adicionada."
+
+    @staticmethod
+    def vincular_rotina(etapa_id, rotina_id):
+        """Vincula uma rotina do ciclo a uma etapa (inclusive etapa manual).
+
+        A MESMA rotina pode ser vinculada a VÁRIAS etapas do mesmo caso
+        (ex.: exportação PDF e exportação CSV do mesmo pedido).
+        Regra de herança: se a rotina estiver 'Concluída', a etapa vira 'Passou'.
+        """
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM ciclo_rotinas WHERE id=?", (rotina_id,))
+        rot = cur.fetchone()
+        if not rot:
+            conn.close()
+            return False, "Rotina não encontrada no ciclo."
+        if rot["status"] in ("Concluida", "Concluída"):
+            cur.execute(
+                "UPDATE caso_etapas SET rotina_id=?, status='Passou' WHERE id=?",
+                (rotina_id, etapa_id))
+        else:
+            cur.execute("UPDATE caso_etapas SET rotina_id=? WHERE id=?",
+                        (rotina_id, etapa_id))
+        conn.commit()
+        conn.close()
+        return True, f"Rotina '{rot['nome']}' vinculada à etapa."
+
+    @staticmethod
+    def desvincular_rotina(etapa_id):
+        """Remove o vínculo da etapa com a rotina (a etapa manual é mantida)."""
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        cur.execute("UPDATE caso_etapas SET rotina_id=NULL WHERE id=?",
+                    (etapa_id,))
+        conn.commit()
+        conn.close()
+        return True, "Vínculo com a rotina removido (etapa manual mantida)."
 
     @staticmethod
     def atualizar_status(etapa_id, status):
@@ -1179,3 +1173,91 @@ class CasoEtapaRepositorio:
         passou = cur.fetchone()[0]
         conn.close()
         return total, passou
+
+
+class TipoTesteRepositorio:
+    """Tipos de Teste — configuráveis (Configurações → Tipos de Teste).
+
+    Alimenta o campo 'Tipo' da tela de Casos do Ciclo. Renomear propaga nos
+    casos vinculados; excluir só é permitido quando nenhum caso usa o tipo.
+    """
+
+    @staticmethod
+    def listar():
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM tipos_teste ORDER BY nome")
+        rows = [dict(r) for r in cur.fetchall()]
+        conn.close()
+        return rows
+
+    @staticmethod
+    def listar_nomes():
+        return [t["nome"] for t in TipoTesteRepositorio.listar()]
+
+    @staticmethod
+    def inserir(nome):
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute("INSERT INTO tipos_teste (nome) VALUES (?)",
+                        (nome.strip().upper(),))
+            conn.commit()
+            novo_id = cur.lastrowid
+            conn.close()
+            return novo_id, None
+        except Exception as e:
+            conn.close()
+            return None, str(e)
+
+    @staticmethod
+    def atualizar(tipo_id, novo_nome):
+        novo_nome = novo_nome.strip().upper()
+        if not novo_nome:
+            return False, "Informe o novo nome do tipo."
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute("SELECT nome FROM tipos_teste WHERE id = ?", (tipo_id,))
+            row = cur.fetchone()
+            if not row:
+                conn.close()
+                return False, "Tipo não encontrado."
+            antigo = row[0]
+            if antigo == novo_nome:
+                conn.close()
+                return False, "O novo nome é igual ao atual."
+            cur.execute("SELECT id FROM tipos_teste WHERE nome = ? AND id <> ?",
+                        (novo_nome, tipo_id))
+            if cur.fetchone():
+                conn.close()
+                return False, f"Já existe um tipo com o nome '{novo_nome}'."
+            cur.execute("UPDATE tipos_teste SET nome = ? WHERE id = ?",
+                        (novo_nome, tipo_id))
+            cur.execute("UPDATE casos_teste SET tipo = ? WHERE tipo = ?",
+                        (novo_nome, antigo))
+            conn.commit()
+            conn.close()
+            return True, f"Tipo renomeado para '{novo_nome}'. Casos vinculados atualizados."
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            return False, str(e)
+
+    @staticmethod
+    def excluir(tipo_id):
+        conn = Database.get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT nome FROM tipos_teste WHERE id = ?", (tipo_id,))
+        row = cur.fetchone()
+        if not row:
+            conn.close()
+            return False
+        cur.execute("SELECT COUNT(*) FROM casos_teste WHERE tipo = ?", (row[0],))
+        if cur.fetchone()[0] > 0:
+            conn.close()
+            return False
+        cur.execute("DELETE FROM tipos_teste WHERE id = ?", (tipo_id,))
+        conn.commit()
+        conn.close()
+        return True

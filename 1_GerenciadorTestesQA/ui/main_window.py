@@ -13,6 +13,7 @@ from .usuarios_dialog import UsuariosDialog
 from .clientes_dialog import ClientesDialog
 from .conexoes_dialog import ConexoesDialog
 from .tipos_ciclo_dialog import TiposCicloDialog
+from .tipos_teste_dialog import TiposTesteDialog
 from utils.themes import ThemeManager
 from database.models import ClienteRepositorio
 from database.connection import Database
@@ -43,9 +44,8 @@ class MainWindow(QMainWindow):
 
         self.setWindowState(Qt.WindowMaximized)
 
-        # Ciclo selecionado na aba 1 alimenta a aba 2 (casos do ciclo)
+        # Ciclo selecionado na aba 1 alimenta as abas Casos e Execução
         self.ciclos.cicloMudou.connect(self.casos.definir_ciclo)
-        # >>> NOVO: ciclo selecionado também alimenta a aba EXECUÇÃO <<<
         self.ciclos.cicloMudou.connect(self.execucao.definir_ciclo)
         self.tabs.currentChanged.connect(self._on_aba)
         self.statusBar().showMessage("Pronto")
@@ -60,18 +60,25 @@ class MainWindow(QMainWindow):
     def _criar_menu(self):
         barra = self.menuBar()
 
-        menu_cadastros = barra.addMenu("Cadastros")
-        acao_modulos = menu_cadastros.addAction("Módulos...")
+        # ---- MENU CADASTRO (catálogos) ----
+        menu_cadastro = barra.addMenu("Cadastro")
+        acao_modulos = menu_cadastro.addAction("Módulos...")
         acao_modulos.triggered.connect(self._abrir_modulos)
-        acao_usuarios = menu_cadastros.addAction("Usuários...")
-        acao_usuarios.triggered.connect(self._abrir_usuarios)
-        acao_clientes = menu_cadastros.addAction("Clientes...")
+        acao_clientes = menu_cadastro.addAction("Clientes...")
         acao_clientes.triggered.connect(self._abrir_clientes)
-        acao_conexoes = menu_cadastros.addAction("Conexões a Bancos...")
-        acao_conexoes.triggered.connect(self._abrir_conexoes)
-        acao_tipos = menu_cadastros.addAction("Tipos de Ciclo...")
-        acao_tipos.triggered.connect(self._abrir_tipos_ciclo)
+        acao_usuarios = menu_cadastro.addAction("Usuários...")
+        acao_usuarios.triggered.connect(self._abrir_usuarios)
 
+        # ---- MENU CONFIGURAÇÕES (parametrização do sistema) ----
+        menu_config = barra.addMenu("Configurações")
+        acao_tipos_ciclo = menu_config.addAction("Tipos de Ciclo...")
+        acao_tipos_ciclo.triggered.connect(self._abrir_tipos_ciclo)
+        acao_tipos_teste = menu_config.addAction("Tipos de Teste...")
+        acao_tipos_teste.triggered.connect(self._abrir_tipos_teste)
+        acao_conexoes = menu_config.addAction("Conexões a Bancos...")
+        acao_conexoes.triggered.connect(self._abrir_conexoes)
+
+        # ---- MENU TEMA ----
         menu_tema = barra.addMenu("Tema")
         acao_claro = menu_tema.addAction("Claro")
         acao_escuro = menu_tema.addAction("Escuro")
@@ -80,6 +87,8 @@ class MainWindow(QMainWindow):
         acao_claro.triggered.connect(lambda: self._trocar_tema("claro"))
         acao_escuro.triggered.connect(lambda: self._trocar_tema("escuro"))
         acao_sistema.triggered.connect(lambda: self._trocar_tema("sistema"))
+
+    # ---------- Handlers dos menus (é AQUI que o método entra) ----------
 
     def _abrir_modulos(self):
         dlg = ModulosDialog(self)
@@ -108,12 +117,16 @@ class MainWindow(QMainWindow):
         dlg.exec()
         self.ciclos.carregar()
 
+    def _abrir_tipos_teste(self):
+        dlg = TiposTesteDialog(self)
+        dlg.exec()
+        self.casos.definir_ciclo(self.ciclos.ciclo_atual())
+
     def _recarregar(self):
         """Recarrega o seletor de clientes e todos os dados."""
         self._preencher_seletor_clientes()
         self.ciclos.carregar()
         self.casos.definir_ciclo(self.ciclos.ciclo_atual())
-        # >>> NOVO: execução acompanha o ciclo atual também no recarregar <<<
         self.execucao.definir_ciclo(self.ciclos.ciclo_atual())
         self.melhorias.carregar()
         self.relatorios.carregar_ciclos()
@@ -153,7 +166,6 @@ class MainWindow(QMainWindow):
         elif index == 1:  # Casos do Ciclo
             self.casos.definir_ciclo(self.ciclos.ciclo_atual())
         elif index == 2:  # Execução
-            # >>> CORRIGIDO: antes era carregar_ciclos() (que não existe mais) <<<
             self.execucao.definir_ciclo(self.ciclos.ciclo_atual())
         elif index == 3:  # Melhorias
             self.melhorias.carregar()

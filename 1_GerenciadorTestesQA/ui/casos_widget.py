@@ -1,10 +1,10 @@
 """Widget de Casos de Teste — mostra os casos do ciclo selecionado na aba Ciclos.
 
-MÓDULO COMO LIST BOX: o combo de módulo é NÃO editável (dropdown puro).
-ETAPAS DO CASO (teste de processo): botão 'Etapas do Ciclo' no rodapé abre o
-diálogo que vincula as rotinas do ciclo como etapas; o formulário de edição
-também exibe a grade de etapas com vínculo e status.
-Coluna Tarefa em Stretch; coluna Tipo aumentada.
+MÓDULO COMO LIST BOX: combo não editável (dropdown puro).
+TIPOS DE TESTE: vêm da tabela 'tipos_teste' (Configurações → Tipos de Teste).
+ETAPAS DO CASO (teste de processo): botão 'Etapas do Ciclo' no rodapé + grade
+no formulário — permite VINCULAR uma rotina à etapa manual selecionada
+(validação técnica) e DESVINCULAR. Coluna Tarefa em Stretch; Tipo aumentada.
 """
 import os
 import traceback
@@ -17,9 +17,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from database.models import (
     CasoRepositorio, CicloRepositorio, ModuloRepositorio, UsuarioRepositorio,
-    CasoEtapaRepositorio, CicloDetalheRepositorio,
+    CasoEtapaRepositorio, TipoTesteRepositorio,
 )
-from utils.helpers import TIPOS_OPCOES, PRIORIDADES_OPCOES
+from utils.helpers import PRIORIDADES_OPCOES
 from .modulos_dialog import ModulosDialog
 from .usuarios_dialog import UsuariosDialog
 from .caso_etapas_dialog import CasoEtapasDialog, _carregar_rotinas_combo
@@ -48,13 +48,27 @@ def _carregar_modulos_no_combo(combo):
     return modulos
 
 
+def _carregar_tipos_no_combo(combo):
+    """Popula o combo de Tipo com os tipos configurados na tabela tipos_teste."""
+    try:
+        tipos = TipoTesteRepositorio.listar_nomes()
+    except Exception:
+        _log_erro()
+        tipos = []
+    combo.clear()
+    combo.addItems(tipos)
+    if not tipos:
+        combo.setToolTip("Nenhum tipo cadastrado. Cadastre em Configurações → Tipos de Teste.")
+    return tipos
+
+
 class CasoDialog(QDialog):
     def __init__(self, parent=None, caso=None, ciclo_id=None):
         super().__init__(parent)
         self.caso = caso
         self.ciclo_id = ciclo_id
         self.setWindowTitle("Novo Caso" if not caso else "Editar Caso")
-        self.setMinimumWidth(560)
+        self.setMinimumWidth(580)
 
         form = QFormLayout()
         self.ed_codigo = QLineEdit()
@@ -81,8 +95,9 @@ class CasoDialog(QDialog):
         linha_modulo.addWidget(btn_mod)
 
         self.ed_rotina = QLineEdit()
+        # ---- TIPO vem da tabela tipos_teste (Configurações → Tipos de Teste) ----
         self.cb_tipo = QComboBox()
-        self.cb_tipo.addItems(TIPOS_OPCOES)
+        _carregar_tipos_no_combo(self.cb_tipo)
         self.cb_prioridade = QComboBox()
         self.cb_prioridade.addItems(PRIORIDADES_OPCOES)
 
@@ -128,19 +143,29 @@ class CasoDialog(QDialog):
             self.cb_rotinas_form = QComboBox()
             _carregar_rotinas_combo(self.cb_rotinas_form, self.ciclo_id)
             linha_etp.addWidget(self.cb_rotinas_form, 1)
-            btn_vinc = QPushButton("+ Rotina")
-            btn_vinc.clicked.connect(self._vincular_rotina_form)
-            btn_man = QPushButton("+ Manual")
-            btn_man.clicked.connect(self._adicionar_manual_form)
-            btn_sinc = QPushButton("Sincronizar")
-            btn_sinc.clicked.connect(self._sincronizar_form)
-            btn_rem = QPushButton("Remover")
-            btn_rem.clicked.connect(self._remover_etapa_form)
-            linha_etp.addWidget(btn_vinc)
-            linha_etp.addWidget(btn_man)
-            linha_etp.addWidget(btn_sinc)
-            linha_etp.addWidget(btn_rem)
+            btn_vinc_etp = QPushButton("Vincular na Etapa")
+            btn_vinc_etp.setToolTip(
+                "Associa a rotina escolhida à etapa selecionada na grade.")
+            btn_vinc_etp.clicked.connect(self._vincular_rotina_form)
+            btn_desc_etp = QPushButton("Desvincular")
+            btn_desc_etp.setToolTip("Remove o vínculo da etapa selecionada.")
+            btn_desc_etp.clicked.connect(self._desvincular_rotina_form)
+            linha_etp.addWidget(btn_vinc_etp)
+            linha_etp.addWidget(btn_desc_etp)
             layout.addLayout(linha_etp)
+
+            linha_etp2 = QHBoxLayout()
+            btn_man = QPushButton("+ Etapa Manual")
+            btn_sinc = QPushButton("Sincronizar")
+            btn_rem = QPushButton("Remover Etapa")
+            btn_man.clicked.connect(self._adicionar_manual_form)
+            btn_sinc.clicked.connect(self._sincronizar_form)
+            btn_rem.clicked.connect(self._remover_etapa_form)
+            linha_etp2.addWidget(btn_man)
+            linha_etp2.addWidget(btn_sinc)
+            linha_etp2.addWidget(btn_rem)
+            linha_etp2.addStretch()
+            layout.addLayout(linha_etp2)
 
             self.grade_etapas = QTableWidget(0, 4)
             self.grade_etapas.setHorizontalHeaderLabels(
@@ -248,32 +273,54 @@ class CasoDialog(QDialog):
         return item.data(Qt.UserRole) if item else None
 
     def _vincular_rotina_form(self):
-        if not self.caso or not self.ciclo_id:
+        """Vincula a rotina do combo à etapa manual selecionada na grade."""
+        etapa_id = self._etapa_form_selecionada()
+        if not etapa_id:
+            QMessageBox.information(
+                self, "Aviso", "Selecione uma etapa na grade primeiro.")
             return
         rotina_id = self.cb_rotinas_form.currentData()
         if not rotina_id:
             QMessageBox.information(
                 self, "Aviso",
-                "O ciclo não tem rotinas cadastradas.\n"
+                "O ciclo não tem rotinas disponíveis.\n"
                 "Cadastre em 'Detalhes do Ciclo → Rotinas'.")
             return
         try:
-            ok, msg = CasoEtapaRepositorio.adicionar_de_rotina(
-                self.caso["id"], rotina_id)
+            ok, msg = CasoEtapaRepositorio.vincular_rotina(etapa_id, rotina_id)
         except Exception:
             _log_erro()
             QMessageBox.critical(self, "Erro", "Falha ao vincular. Veja erros.log")
             return
+        self._carregar_etapas_form()
         if ok:
-            self._carregar_etapas_form()
+            QMessageBox.information(self, "Sucesso", msg)
         else:
             QMessageBox.warning(self, "Atenção", msg)
+
+    def _desvincular_rotina_form(self):
+        etapa_id = self._etapa_form_selecionada()
+        if not etapa_id:
+            QMessageBox.information(
+                self, "Aviso", "Selecione uma etapa na grade primeiro.")
+            return
+        if QMessageBox.question(
+                self, "Confirmar",
+                "Desvincular a rotina desta etapa? A etapa manual será mantida.") \
+                == QMessageBox.Yes:
+            try:
+                CasoEtapaRepositorio.desvincular_rotina(etapa_id)
+            except Exception:
+                _log_erro()
+                QMessageBox.critical(self, "Erro", "Falha ao desvincular. Veja erros.log")
+                return
+            self._carregar_etapas_form()
 
     def _adicionar_manual_form(self):
         if not self.caso:
             return
         nome, ok = QInputDialog.getText(
-            self, "Etapa Manual", "Descreva a validação desta etapa:")
+            self, "Etapa Manual", "Descreva a validação técnica desta etapa:")
         if ok and nome.strip():
             ok2, msg = CasoEtapaRepositorio.adicionar_manual(self.caso["id"], nome)
             if ok2:
@@ -318,9 +365,14 @@ class CasoDialog(QDialog):
             self.cb_modulo.addItem(modulo_caso)
             self.cb_modulo.setCurrentIndex(self.cb_modulo.count() - 1)
         self.ed_rotina.setText(caso.get("rotina") or "")
-        idx = self.cb_tipo.findText(caso.get("tipo") or "Funcional")
+        # Tipo: seleciona da tabela; se o valor salvo não existir, adiciona para preservar
+        tipo_caso = caso.get("tipo") or "Funcional"
+        idx = self.cb_tipo.findText(tipo_caso)
         if idx >= 0:
             self.cb_tipo.setCurrentIndex(idx)
+        elif tipo_caso:
+            self.cb_tipo.addItem(tipo_caso)
+            self.cb_tipo.setCurrentIndex(self.cb_tipo.count() - 1)
         idx = self.cb_prioridade.findText(caso.get("prioridade") or "Media")
         if idx >= 0:
             self.cb_prioridade.setCurrentIndex(idx)
@@ -389,9 +441,10 @@ class CasosWidget(QWidget):
         topo.addWidget(self.cb_filtro_modulo)
         topo.addWidget(QLabel("Tipo:"))
         self.cb_filtro_tipo = QComboBox()
-        self.cb_filtro_tipo.addItem("Todos")
-        self.cb_filtro_tipo.addItems(TIPOS_OPCOES)
+        _carregar_tipos_no_combo(self.cb_filtro_tipo)
+        self.cb_filtro_tipo.insertItem(0, "Todos")
         self.cb_filtro_tipo.currentIndexChanged.connect(self.carregar)
+        topo.addWidget(self.cb_filtro_tipo)
         topo.addStretch()
         layout.addLayout(topo)
 

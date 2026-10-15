@@ -603,6 +603,25 @@ class Database:
                 nome TEXT UNIQUE NOT NULL
             )
         """)
+        
+        # Tipos de Teste — configuráveis pelo usuário (Configurações → Tipos de Teste)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS tipos_teste (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT NOT NULL UNIQUE
+            )
+        """)
+        
+        # Semear padrões (só se vazia) para não quebrar os combos existentes
+        cur.execute("SELECT COUNT(*) FROM tipos_teste")
+        if cur.fetchone()[0] == 0:
+            for nome in ("Funcional", "Processo", "Regressivo", "Integração", "Segurança"):
+                cur.execute("INSERT OR IGNORE INTO tipos_teste (nome) VALUES (?)", (nome.upper(),))
+        
+        # Garantir que tipos já usados em casos existentes fiquem disponíveis no combo
+        cur.execute("SELECT DISTINCT tipo FROM casos_teste WHERE tipo IS NOT NULL AND tipo <> ''")
+        for (t,) in cur.fetchall():
+            cur.execute("INSERT OR IGNORE INTO tipos_teste (nome) VALUES (?)", (t.upper(),))
         cur.execute("""
             CREATE TABLE IF NOT EXISTS melhorias (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
