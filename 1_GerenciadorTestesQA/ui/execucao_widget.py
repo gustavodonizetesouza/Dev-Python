@@ -1,10 +1,12 @@
 """Widget de Execução — execução dos casos de teste do ciclo selecionado.
 
-A aba SEMPRE acompanha o ciclo selecionado na aba Ciclos:
-- definir_ciclo(ciclo_id) recebe o ciclo selecionado (conectado ao sinal
-  cicloMudou da aba Ciclos);
-- recarrega os casos e KPIs a cada mudança de ciclo E a cada vez que a aba
-  fica visível (showEvent) — nunca mais fica "preso" num ciclo antigo.
+EXECUÇÃO POR ETAPAS: casos com etapas de validação são executados etapa a
+etapa (status, % e horas de cada etapa) e o caso é TOTALIZADO automaticamente
+(status consolidado, % médio, soma das horas). Casos sem etapas seguem o modo
+manual. A aba SEMPRE acompanha o ciclo selecionado na aba Ciclos.
+
+CORES ADAPTATIVAS: KPIs do topo e linha de totalização usam cor de destaque
+ajustada ao tema (claro/escuro) — legível em ambos.
 """
 import os
 import traceback
@@ -14,7 +16,11 @@ from PySide6.QtWidgets import (
     QDialog, QDialogButtonBox, QHeaderView, QDoubleSpinBox, QSpinBox,
 )
 from PySide6.QtCore import Qt
-from database.models import CasoRepositorio, CicloRepositorio, UsuarioRepositorio
+from PySide6.QtGui import QPalette
+from database.models import (
+    CasoRepositorio, CicloRepositorio, UsuarioRepositorio,
+    CasoEtapaRepositorio,
+)
 from .usuarios_dialog import UsuariosDialog
 
 STATUS_EXEC = ["Nao iniciado", "Em andamento", "Aprovado",
@@ -32,40 +38,98 @@ def _log_erro():
     traceback.print_exc()
 
 
+def _tema_escuro(widget):
+    """Detecta tema escuro pela luminância da cor de fundo da paleta."""
+    try:
+        cor = widget.palette().color(QPalette.Window)
+        return cor.lightness() < 128
+    except Exception:
+        return False
+
+
+def _cor_destaque(widget):
+    """Azul de destaque legível no tema atual (escuro no claro, claro no escuro)."""
+    if _tema_escuro(widget):
+        return "#7cb8e8"
+    return "#1f5c8b"
+
+
 class ExecucaoDialog(QDialog):
-    """Diálogo para atualizar a execução de um caso (status, %, horas, evidência)."""
+    """Execução de um caso: por etapas (com totalização) ou manual."""
 
     def __init__(self, parent=None, caso=None):
         super().__init__(parent)
         self.caso = caso
         self.setWindowTitle("Atualizar Execução" if caso else "Execução")
-        self.setMinimumWidth(500)
+        self.setMinimumWidth(680)
 
-        form = QFormLayout()
+        etapas = []
+        if caso and caso.get("id"):
+            try:
+                etapas = CasoEtapaRepositorio.listar(caso["id"])
+            except Exception:
+                _log_erro()
+                etapas = []
+        self._tem_etapas = bool(etapas)
+
+        layout = QVBoxLayout(self)
 
         self.lbl_caso = QLabel("")
-        form.addRow("Caso:", self.lbl_caso)
+        layout.addWidget(self.lbl_caso)
 
-        self.cb_status = QComboBox()
-        self.cb_status.addItems(STATUS_EXEC)
-        self.cb_status.currentIndexChanged.connect(self._status_mudou)
-        form.addRow("Status:", self.cb_status)
+        if self._tem_etapas:
+            layout.addWidget(QLabel(
+                "<b>Execução por etapa</b> — informe status, % e horas de cada "
+                "etapa; o caso é totalizado automaticamente:"))
+            self.grade = QTableWidget(0, 6)
+            self.grade.setHorizontalHeaderLabels(
+                ["Ordem", "Etapa (validação)", "Rotina vinculada", "Status", "%", "Horas"])
+            self.grade.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+            self.grade.setColumnWidth(0, 50)
+            self.grade.setColumnWidth(2, 170)
+            self.grade.setColumnWidth(3, 115)
+            self.grade.setColumnWidth(4, 70)
+            self.grade.setColumnWidth(5, 75)
+            self.grade.setSelectionBehavior(QTableWidget.SelectRows)
+            self.grade.setEditTriggers(QTableWidget.NoEditTriggers)
+            self.grade.setFixedHeight(min(120 + len(etapas) * 32, 340))
+            layout.addWidget(self.grade)
+            self._montar_grade(etapas)
 
-        self.sp_percentual = QSpinBox()
-        self.sp_percentual.setRange(0, 100)
-        self.sp_percentual.setSuffix(" %")
-        form.addRow("Percentual:", self.sp_percentual)
+            self.lbl_total = QLabel("")
+            self.lbl_total.setStyleSheet(
+                f"font-weight: bold; color:{_cor_destaque(self)};")
+            layout.addWidget(self.lbl_total)
+            self._recalcular_total()
+        else:
+            layout.addWidget(QLabel(
+                "Este caso não tem etapas de validação — informe a execução "
+                "direto abaixo. Para executar por etapas, use 'Etapas do "
+                "Ciclo...' na aba Casos do Ciclo."))
+
+        form = QFormLayout()
+        if not self._tem_etapas:
+            self.cb_status = QComboBox()
+            self.cb_status.addItems(STATUS_EXEC)
+            self.cb_status.currentIndexChanged.connect(self._status_mudou)
+            form.addRow("Status:", self.cb_status)
+            self.sp_percentual = QSpinBox()
+            self.sp_percentual.setRange(0, 100)
+            self.sp_percentual.setSuffix(" %")
+            form.addRow("Percentual:", self.sp_percentual)
 
         self.cb_responsavel = QComboBox()
         self.cb_responsavel.addItem("")
-        self.cb_responsavel.addItems([u["nome"] for u in UsuarioRepositorio.listar()])
+        self.cb_responsavel.addItems([u["nome"]
+                                     for u in UsuarioRepositorio.listar()])
         form.addRow("Responsável:", self.cb_responsavel)
 
-        self.sp_horas = QDoubleSpinBox()
-        self.sp_horas.setRange(0, 99999)
-        self.sp_horas.setDecimals(2)
-        self.sp_horas.setSuffix(" h")
-        form.addRow("Horas reais:", self.sp_horas)
+        if not self._tem_etapas:
+            self.sp_horas = QDoubleSpinBox()
+            self.sp_horas.setRange(0, 99999)
+            self.sp_horas.setDecimals(2)
+            self.sp_horas.setSuffix(" h")
+            form.addRow("Horas reais:", self.sp_horas)
 
         self.ed_evidencia = QTextEdit()
         self.ed_evidencia.setFixedHeight(60)
@@ -75,17 +139,95 @@ class ExecucaoDialog(QDialog):
         self.ed_observacoes.setFixedHeight(60)
         form.addRow("Observações:", self.ed_observacoes)
 
-        botoes = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        layout.addLayout(form)
+
+        botoes = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         botoes.accepted.connect(self.accept)
         botoes.rejected.connect(self.reject)
-
-        layout = QVBoxLayout(self)
-        layout.addLayout(form)
         layout.addWidget(botoes)
 
         if caso:
             self._preencher(caso)
 
+    # ---------- Grade de etapas (modo com etapas) ----------
+    def _montar_grade(self, etapas):
+        self.grade.setRowCount(len(etapas))
+        for i, e in enumerate(etapas):
+            id_item = QTableWidgetItem(str(e.get("ordem") or i + 1))
+            id_item.setData(Qt.UserRole, e["id"])
+            self.grade.setItem(i, 0, id_item)
+            self.grade.setItem(i, 1, QTableWidgetItem(e.get("nome") or ""))
+            rot = ""
+            if e.get("rotina_id"):
+                rot = (f"{e.get('rotina_codigo') or ''} — "
+                       f"{e.get('rotina_nome') or ''}").strip()
+            self.grade.setItem(i, 2, QTableWidgetItem(rot))
+
+            cmb = QComboBox()
+            cmb.addItems(CasoEtapaRepositorio.STATUS_OPCOES)
+            idx = cmb.findText(e.get("status") or "Nao iniciada")
+            if idx >= 0:
+                cmb.setCurrentIndex(idx)
+            cmb.currentIndexChanged.connect(
+                lambda _idx, row=i: self._status_etapa_mudou(row))
+            self.grade.setCellWidget(i, 3, cmb)
+
+            sp_pct = QSpinBox()
+            sp_pct.setRange(0, 100)
+            sp_pct.setSuffix(" %")
+            sp_pct.setValue(int(e.get("percentual") or 0))
+            sp_pct.valueChanged.connect(self._recalcular_total)
+            self.grade.setCellWidget(i, 4, sp_pct)
+
+            sp_horas = QDoubleSpinBox()
+            sp_horas.setRange(0, 99999)
+            sp_horas.setDecimals(2)
+            sp_horas.setSuffix(" h")
+            sp_horas.setValue(float(e.get("horas_reais") or 0))
+            sp_horas.valueChanged.connect(self._recalcular_total)
+            self.grade.setCellWidget(i, 5, sp_horas)
+
+    def _status_etapa_mudou(self, row):
+        cmb = self.grade.cellWidget(row, 3)
+        sp_pct = self.grade.cellWidget(row, 4)
+        if cmb and sp_pct:
+            if cmb.currentText() == "Passou":
+                sp_pct.setValue(100)
+            elif cmb.currentText() == "Nao iniciada":
+                sp_pct.setValue(0)
+        self._recalcular_total()
+
+    def _recalcular_total(self):
+        if not getattr(self, "_tem_etapas", False):
+            return
+        statuses, pcts, horas = [], [], 0.0
+        for i in range(self.grade.rowCount()):
+            cmb = self.grade.cellWidget(i, 3)
+            sp_pct = self.grade.cellWidget(i, 4)
+            sp_h = self.grade.cellWidget(i, 5)
+            if cmb:
+                statuses.append(cmb.currentText())
+            if sp_pct:
+                pcts.append(sp_pct.value())
+            if sp_h:
+                horas += sp_h.value()
+        if not statuses:
+            return
+        if "Falhou" in statuses:
+            st = "Reprovado"
+        elif all(s == "Passou" for s in statuses):
+            st = "Aprovado"
+        elif any(s in ("Passou", "Em andamento") for s in statuses):
+            st = "Em andamento"
+        else:
+            st = "Nao iniciado"
+        pct = round(sum(pcts) / len(pcts)) if pcts else 0
+        self.lbl_total.setText(
+            f"Totalização do caso → Status: {st}  |  % médio: {pct}%  |  "
+            f"Horas: {round(horas, 2)} h")
+
+    # ---------- Modo manual (sem etapas) ----------
     def _status_mudou(self, _idx):
         status = self.cb_status.currentText()
         if status in ("Aprovado", "Concluido"):
@@ -93,33 +235,57 @@ class ExecucaoDialog(QDialog):
         elif status == "Nao iniciado":
             self.sp_percentual.setValue(0)
 
+    # ---------- Preencher / dados ----------
     def _preencher(self, caso):
         self.lbl_caso.setText(
-            f"{caso.get('codigo') or ''} — {caso.get('tarefa') or caso.get('descricao') or ''}".strip())
-        idx = self.cb_status.findText(caso.get("status_exec") or "Nao iniciado")
-        if idx >= 0:
-            self.cb_status.setCurrentIndex(idx)
-        self.sp_percentual.setValue(int(caso.get("percentual") or 0))
+            f"{caso.get('codigo') or ''} — "
+            f"{caso.get('tarefa') or caso.get('descricao') or ''}".strip())
+        if not self._tem_etapas:
+            idx = self.cb_status.findText(
+                caso.get("status_exec") or "Nao iniciado")
+            if idx >= 0:
+                self.cb_status.setCurrentIndex(idx)
+            self.sp_percentual.setValue(int(caso.get("percentual") or 0))
+            self.sp_horas.setValue(float(caso.get("horas_reais") or 0))
         resp = caso.get("responsavel") or ""
         idx = self.cb_responsavel.findText(resp)
         if idx >= 0:
             self.cb_responsavel.setCurrentIndex(idx)
         elif resp:
             self.cb_responsavel.addItem(resp)
-            self.cb_responsavel.setCurrentIndex(self.cb_responsavel.count() - 1)
-        self.sp_horas.setValue(float(caso.get("horas_reais") or 0))
+            self.cb_responsavel.setCurrentIndex(
+                self.cb_responsavel.count() - 1)
         self.ed_evidencia.setPlainText(caso.get("evidencia") or "")
         self.ed_observacoes.setPlainText(caso.get("observacoes") or "")
 
     def dados(self):
-        return {
-            "status_exec": self.cb_status.currentText(),
-            "percentual": self.sp_percentual.value(),
+        d = {
             "responsavel": self.cb_responsavel.currentText(),
-            "horas_reais": self.sp_horas.value(),
             "evidencia": self.ed_evidencia.toPlainText().strip(),
             "observacoes": self.ed_observacoes.toPlainText().strip(),
         }
+        if not self._tem_etapas:
+            d["status_exec"] = self.cb_status.currentText()
+            d["percentual"] = self.sp_percentual.value()
+            d["horas_reais"] = self.sp_horas.value()
+        return d
+
+    def dados_etapas(self):
+        """[(etapa_id, status, percentual, horas)] lido da grade (modo com etapas)."""
+        if not self._tem_etapas:
+            return []
+        out = []
+        for i in range(self.grade.rowCount()):
+            item = self.grade.item(i, 0)
+            etapa_id = item.data(Qt.UserRole) if item else None
+            cmb = self.grade.cellWidget(i, 3)
+            sp_pct = self.grade.cellWidget(i, 4)
+            sp_h = self.grade.cellWidget(i, 5)
+            if etapa_id and cmb:
+                out.append((etapa_id, cmb.currentText(),
+                            sp_pct.value() if sp_pct else 0,
+                            sp_h.value() if sp_h else 0.0))
+        return out
 
 
 class ExecucaoWidget(QWidget):
@@ -129,16 +295,17 @@ class ExecucaoWidget(QWidget):
         super().__init__()
         self.ciclo_id = None
         self._build_ui()
+        self._aplicar_estilos()
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
 
-        self.lbl_ciclo = QLabel("Selecione um ciclo na aba 'Ciclos' para executar os testes.")
+        self.lbl_ciclo = QLabel(
+            "Selecione um ciclo na aba 'Ciclos' para executar os testes.")
         layout.addWidget(self.lbl_ciclo)
 
-        # KPIs do ciclo
+        # KPIs do ciclo (estilo aplicado em _aplicar_estilos)
         self.lbl_kpis = QLabel("")
-        self.lbl_kpis.setStyleSheet("font-weight: bold; color: #1f5c8b;")
         layout.addWidget(self.lbl_kpis)
 
         topo = QHBoxLayout()
@@ -177,9 +344,15 @@ class ExecucaoWidget(QWidget):
         botoes.addStretch()
         layout.addLayout(botoes)
 
+    def _aplicar_estilos(self):
+        """Aplica cores adaptativas ao tema atual (chamado no __init__ e showEvent)."""
+        self.lbl_kpis.setStyleSheet(
+            f"font-weight: bold; color:{_cor_destaque(self)};")
+
     def showEvent(self, event):
-        """Toda vez que a aba fica visível, recarrega — nunca fica em ciclo antigo."""
+        """Toda vez que a aba fica visível: reaplica estilos e recarrega."""
         super().showEvent(event)
+        self._aplicar_estilos()
         self.carregar()
 
     def definir_ciclo(self, ciclo_id):
@@ -191,9 +364,11 @@ class ExecucaoWidget(QWidget):
             except Exception:
                 ciclo = None
             nome = ciclo["nome"] if ciclo else "?"
-            self.lbl_ciclo.setText(f"Ciclo: {nome} — execução dos casos abaixo.")
+            self.lbl_ciclo.setText(
+                f"Ciclo: {nome} — execução dos casos abaixo.")
         else:
-            self.lbl_ciclo.setText("Selecione um ciclo na aba 'Ciclos' para executar os testes.")
+            self.lbl_ciclo.setText(
+                "Selecione um ciclo na aba 'Ciclos' para executar os testes.")
             self.tabela.setRowCount(0)
             self.lbl_kpis.setText("")
         self.carregar()
@@ -228,10 +403,14 @@ class ExecucaoWidget(QWidget):
             self.tabela.setItem(i, 1, QTableWidgetItem(c.get("codigo") or ""))
             self.tabela.setItem(i, 2, QTableWidgetItem(c.get("tarefa") or ""))
             self.tabela.setItem(i, 3, QTableWidgetItem(c.get("modulo") or ""))
-            self.tabela.setItem(i, 4, QTableWidgetItem(c.get("status_exec") or ""))
-            self.tabela.setItem(i, 5, QTableWidgetItem(str(c.get("percentual") or 0)))
-            self.tabela.setItem(i, 6, QTableWidgetItem(c.get("responsavel") or ""))
-            self.tabela.setItem(i, 7, QTableWidgetItem(str(c.get("horas_reais") or 0)))
+            self.tabela.setItem(i, 4, QTableWidgetItem(
+                c.get("status_exec") or ""))
+            self.tabela.setItem(i, 5, QTableWidgetItem(
+                str(c.get("percentual") or 0)))
+            self.tabela.setItem(i, 6, QTableWidgetItem(
+                c.get("responsavel") or ""))
+            self.tabela.setItem(i, 7, QTableWidgetItem(
+                str(c.get("horas_reais") or 0)))
 
         # KPIs do ciclo
         try:
@@ -256,11 +435,13 @@ class ExecucaoWidget(QWidget):
 
     def executar(self):
         if not self.ciclo_id:
-            QMessageBox.information(self, "Aviso", "Selecione um ciclo na aba 'Ciclos' primeiro.")
+            QMessageBox.information(
+                self, "Aviso", "Selecione um ciclo na aba 'Ciclos' primeiro.")
             return
         caso_id = self._selecionado()
         if not caso_id:
-            QMessageBox.information(self, "Aviso", "Selecione um caso na lista.")
+            QMessageBox.information(
+                self, "Aviso", "Selecione um caso na lista.")
             return
         caso = CasoRepositorio.obter(caso_id)
         if not caso:
@@ -270,14 +451,29 @@ class ExecucaoWidget(QWidget):
         if dlg.exec():
             try:
                 d = dlg.dados()
-                CicloRepositorio.atualizar_execucao(
-                    caso_id, d["status_exec"], d["percentual"], d["responsavel"],
-                    d["horas_reais"], d["evidencia"], d["observacoes"])
+                etapas = dlg.dados_etapas()
+                if etapas:
+                    # 1) grava a execução de cada etapa
+                    for etapa_id, status, pct, horas in etapas:
+                        CasoEtapaRepositorio.atualizar_execucao(
+                            etapa_id, status, pct, horas)
+                    # 2) totaliza e grava no caso
+                    tot = CasoEtapaRepositorio.totalizar_caso(caso_id)
+                    CicloRepositorio.atualizar_execucao(
+                        caso_id, tot["status_exec"], tot["percentual"],
+                        d["responsavel"], tot["horas_reais"],
+                        d["evidencia"], d["observacoes"])
+                    msg = (f"Execução totalizada: {caso.get('codigo') or ''} "
+                           f"→ {tot['status_exec']} ({tot['percentual']}%, "
+                           f"{tot['horas_reais']} h).")
+                else:
+                    CicloRepositorio.atualizar_execucao(
+                        caso_id, d["status_exec"], d["percentual"], d["responsavel"],
+                        d["horas_reais"], d["evidencia"], d["observacoes"])
+                    msg = (f"Execução atualizada: {caso.get('codigo') or ''} "
+                           f"→ {d['status_exec']} ({d['percentual']}%).")
                 self.carregar()
-                QMessageBox.information(
-                    self, "Sucesso",
-                    f"Execução atualizada: {caso.get('codigo') or ''} "
-                    f"→ {d['status_exec']} ({d['percentual']}%).")
+                QMessageBox.information(self, "Sucesso", msg)
             except Exception:
                 _log_erro()
                 QMessageBox.critical(self, "Erro",

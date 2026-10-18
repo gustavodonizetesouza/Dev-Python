@@ -1,0 +1,22 @@
+8_GestorFinanceiroEssencial/
+├── main.py                    # ponto de entrada (fica na raiz)      → Program.cs
+├── config.json                # configuração (fica na raiz)          → appsettings.json
+├── requirements.txt           # raiz
+├── core/                      # infraestrutura transversal           → Data + Identity
+│   ├── __init__.py
+│   ├── util.py                #   formatação                         → Helpers
+│   ├── conexao.py             #   conexão multi-banco                → DbContext
+│   ├── schema.py              #   DDL/índices                        → Migrations
+│   ├── seguranca.py           #   hash de senha                      → PasswordHasher
+│   └── sessao.py              #   usuário logado                     → ClaimsPrincipal
+├── dominio/                   # modelos + regras de dados            → Models + Repositories
+│   ├── __init__.py
+│   └── repositorio.py
+└── ui/                        # interface gráfica                    → Controllers + Views
+    ├── __init__.py
+    ├── tema.py
+    ├── graficos.py
+    ├── dialogos.py
+    ├── paginas.py
+    ├── janela_login.py
+    └── janela_principal.py

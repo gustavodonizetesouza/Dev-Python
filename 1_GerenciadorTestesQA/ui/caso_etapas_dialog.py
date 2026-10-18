@@ -1,8 +1,8 @@
-"""Diálogo 'Etapas do Ciclo' — vincula as rotinas do ciclo como etapas do caso.
+"""Diálogo 'Etapas do Ciclo' — CADASTRO de etapas do caso (estrutura).
 
 - Seção 1: lista de rotinas do ciclo com checkboxes (marcar e 'Vincular Selecionadas');
-- Seção 2: grade de etapas já vinculadas — permite VINCULAR uma rotina a uma
-  etapa manual selecionada (validação técnica) e DESVINCULAR quando quiser.
+- Seção 2: grade de etapas do caso — vínculo, desvínculo, etapa manual, remoção;
+  Status, % e Horas são SOMENTE LEITURA: são informados na ABA EXECUÇÃO.
 """
 import os
 import traceback
@@ -41,7 +41,8 @@ _STATUS_ROTINA_LABEL = {
 def _rotina_label(r):
     cod = (r.get("codigo") or "").strip()
     nome = (r.get("nome") or "").strip()
-    status = _STATUS_ROTINA_LABEL.get(r.get("status"), r.get("status") or "Pendente")
+    status = _STATUS_ROTINA_LABEL.get(
+        r.get("status"), r.get("status") or "Pendente")
     base = f"{cod} — {nome}" if cod else nome
     return f"{base}  [{status}]"
 
@@ -76,8 +77,9 @@ class CasoEtapasDialog(QDialog):
         super().__init__(parent)
         self.caso_id = caso_id
         self.ciclo_id = ciclo_id
-        self.setWindowTitle("Etapas do Caso — vinculadas às rotinas do ciclo")
-        self.resize(790, 640)
+        self.setWindowTitle(
+            "Etapas do Caso — cadastro (execução na aba Execução)")
+        self.resize(800, 640)
 
         caso = None
         if caso_id:
@@ -122,21 +124,24 @@ class CasoEtapasDialog(QDialog):
         self.lbl_rotinas_vazias.setWordWrap(True)
         layout.addWidget(self.lbl_rotinas_vazias)
 
-        # ---------- SEÇÃO 2: etapas já vinculadas ----------
-        layout.addWidget(QLabel("<b>2. Etapas já vinculadas a este caso</b> "
-                                "(selecione uma etapa manual e vincule a rotina):"))
-        self.grade = QTableWidget(0, 4)
+        # ---------- SEÇÃO 2: etapas do caso (leitura de execução) ----------
+        layout.addWidget(QLabel(
+            "<b>2. Etapas deste caso</b> — Status, % e Horas são informados "
+            "na ABA EXECUÇÃO (aqui é só cadastro/estrutura):"))
+        self.grade = QTableWidget(0, 6)
         self.grade.setHorizontalHeaderLabels(
-            ["Ordem", "Etapa (validação)", "Rotina vinculada", "Status"])
+            ["Ordem", "Etapa (validação)", "Rotina vinculada", "Status", "%", "Horas"])
         self.grade.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.grade.setColumnWidth(0, 55)
-        self.grade.setColumnWidth(2, 230)
-        self.grade.setColumnWidth(3, 130)
+        self.grade.setColumnWidth(0, 50)
+        self.grade.setColumnWidth(2, 200)
+        self.grade.setColumnWidth(3, 110)
+        self.grade.setColumnWidth(4, 60)
+        self.grade.setColumnWidth(5, 70)
         self.grade.setSelectionBehavior(QTableWidget.SelectRows)
         self.grade.setEditTriggers(QTableWidget.NoEditTriggers)
         layout.addWidget(self.grade, 3)
 
-        # Linha: vincular rotina à etapa SELECIONADA (novo — resolve etapa manual)
+        # Linha: vincular rotina à etapa SELECIONADA
         linha_vinc = QHBoxLayout()
         linha_vinc.addWidget(QLabel("Vincular rotina à etapa selecionada:"))
         self.cb_rotinas_etapa = QComboBox()
@@ -147,7 +152,8 @@ class CasoEtapasDialog(QDialog):
             "Associa a rotina escolhida à etapa selecionada na grade (inclusive etapa manual).")
         btn_vinc_etapa.clicked.connect(self._vincular_rotina_na_etapa)
         btn_desc = QPushButton("Desvincular")
-        btn_desc.setToolTip("Remove o vínculo da etapa selecionada com a rotina.")
+        btn_desc.setToolTip(
+            "Remove o vínculo da etapa selecionada com a rotina.")
         btn_desc.clicked.connect(self._desvincular_rotina_etapa)
         linha_vinc.addWidget(btn_vinc_etapa)
         linha_vinc.addWidget(btn_desc)
@@ -211,7 +217,8 @@ class CasoEtapasDialog(QDialog):
 
     def _vincular_selecionadas(self):
         if not self.caso_id:
-            QMessageBox.information(self, "Aviso", "Selecione um caso primeiro.")
+            QMessageBox.information(
+                self, "Aviso", "Selecione um caso primeiro.")
             return
         marcadas = self._rotinas_marcadas()
         if not marcadas:
@@ -248,7 +255,7 @@ class CasoEtapasDialog(QDialog):
             QMessageBox.warning(self, "Erros",
                                 f"{erros} vínculo(s) falharam. Veja erros.log")
 
-    # ---------- Etapas já vinculadas ----------
+    # ---------- Etapas do caso (leitura) ----------
     def _carregar_etapas(self):
         if not self.caso_id:
             return
@@ -268,20 +275,11 @@ class CasoEtapasDialog(QDialog):
                 rot = (f"{e.get('rotina_codigo') or ''} — "
                        f"{e.get('rotina_nome') or ''}").strip()
             self.grade.setItem(i, 2, QTableWidgetItem(rot))
-            cmb = QComboBox()
-            cmb.addItems(CasoEtapaRepositorio.STATUS_OPCOES)
-            idx = cmb.findText(e.get("status") or "Nao iniciada")
-            if idx >= 0:
-                cmb.setCurrentIndex(idx)
-            cmb.currentIndexChanged.connect(
-                lambda text, etid=e["id"]: self._mudar_status(etid, text))
-            self.grade.setCellWidget(i, 3, cmb)
-
-    def _mudar_status(self, etapa_id, status):
-        try:
-            CasoEtapaRepositorio.atualizar_status(etapa_id, status)
-        except Exception:
-            _log_erro()
+            self.grade.setItem(i, 3, QTableWidgetItem(e.get("status") or ""))
+            self.grade.setItem(i, 4, QTableWidgetItem(
+                f"{int(e.get('percentual') or 0)}%"))
+            self.grade.setItem(i, 5, QTableWidgetItem(
+                str(e.get("horas_reais") or 0)))
 
     def _etapa_selecionada(self):
         linha = self.grade.currentRow()
@@ -308,7 +306,8 @@ class CasoEtapasDialog(QDialog):
             ok, msg = CasoEtapaRepositorio.vincular_rotina(etapa_id, rotina_id)
         except Exception:
             _log_erro()
-            QMessageBox.critical(self, "Erro", "Falha ao vincular. Veja erros.log")
+            QMessageBox.critical(
+                self, "Erro", "Falha ao vincular. Veja erros.log")
             return
         self._carregar_etapas()
         if ok:
@@ -330,7 +329,8 @@ class CasoEtapasDialog(QDialog):
                 CasoEtapaRepositorio.desvincular_rotina(etapa_id)
             except Exception:
                 _log_erro()
-                QMessageBox.critical(self, "Erro", "Falha ao desvincular. Veja erros.log")
+                QMessageBox.critical(
+                    self, "Erro", "Falha ao desvincular. Veja erros.log")
                 return
             self._carregar_etapas()
 
@@ -341,7 +341,8 @@ class CasoEtapasDialog(QDialog):
             self, "Etapa Manual", "Descreva a validação técnica desta etapa:")
         if ok and nome.strip():
             try:
-                ok2, msg = CasoEtapaRepositorio.adicionar_manual(self.caso_id, nome)
+                ok2, msg = CasoEtapaRepositorio.adicionar_manual(
+                    self.caso_id, nome)
             except Exception:
                 _log_erro()
                 QMessageBox.critical(self, "Erro",

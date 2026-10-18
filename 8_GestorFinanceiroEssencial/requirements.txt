@@ -1,0 +1,3 @@
+PyQt6>=6.6
+# Opcional — instale apenas quando for migrar para o SQL Server:
+# pyodbc>=5.0

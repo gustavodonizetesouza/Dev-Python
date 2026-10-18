@@ -1,0 +1,15 @@
+{
+  "banco": "sqlite",
+  "tema": "escuro",
+  "sqlite": {
+    "arquivo": "data/gestor_financeiro.db"
+  },
+  "sqlserver": {
+    "servidor": "localhost\\SQLEXPRESS",
+    "banco": "GestorFinanceiro",
+    "driver": "ODBC Driver 17 for SQL Server",
+    "trusted_connection": true,
+    "usuario": "",
+    "senha": ""
+  }
+}
