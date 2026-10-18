@@ -2,7 +2,11 @@
 Recorrências, Relatórios e Usuários (painel do admin).
 
 Dashboard separa REALIZADO (pagos) de PREVISÃO (pendentes). Lançamentos
-exibem coluna de status com filtro e alternância de 1 clique.
+exibem coluna de status com filtro e alternância de 1 clique. Recorrências
+v2 exibem frequência, próxima ocorrência, término (data, Nx ou sem fim)
+e status "Concluída" quando atinge o limite. Os filtros "Até" cobrem o mês
+inteiro por padrão, mantendo visíveis as pendências futuras (ex.: próxima
+parcela a vencer gerada pela recorrência).
 """
 from PyQt6.QtCore import QDate, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFont
@@ -11,8 +15,8 @@ from PyQt6.QtWidgets import (QComboBox, QDateEdit, QFrame, QGridLayout,
                              QMessageBox, QPushButton, QTableWidget,
                              QTableWidgetItem, QVBoxLayout, QWidget)
 
-from core.util import (avancar_mes, fmt_data, fmt_mes_curto, fmt_moeda,
-                       mes_anterior, nome_mes)
+from core.util import (avancar_mes, dias_no_mes, fmt_data, fmt_mes_curto,
+                       fmt_moeda, mes_anterior, nome_mes)
 from dominio.repositorio import ErroRegraNegocio
 from ui.dialogos import (DialogoCategoria, DialogoConta, DialogoLancamento,
                          DialogoNovaSenha, DialogoNovoUsuario,
@@ -21,9 +25,18 @@ from ui.graficos import GraficoBarras, GraficoPizza
 
 VERDE, VERMELHO, AMBAR, CINZA = "#43a047", "#e53935", "#ff9800", "#9aa0a6"
 
+ROTULOS_FREQUENCIA = {"mensal": "Mensal", "semanal": "Semanal",
+                      "trimestral": "Trimestral", "anual": "Anual"}
+
 
 def _estilo_valor(cor: str) -> str:
     return f"font-size: 20px; font-weight: 700; color: {cor};"
+
+
+def _fim_do_mes(qdate: QDate) -> QDate:
+    """Último dia do mês da data informada (para o filtro 'Até')."""
+    return QDate(qdate.year(), qdate.month(),
+                 dias_no_mes(qdate.year(), qdate.month()))
 
 
 class PaginaBase(QWidget):
@@ -225,7 +238,12 @@ class PaginaDashboard(PaginaBase):
 
 class PaginaLancamentos(PaginaBase):
     """Entradas e saídas com filtros (conta, categoria, tipo, status,
-    período e busca) e alternância pago/pendente em 1 clique."""
+    período e busca) e alternância pago/pendente em 1 clique.
+
+    O filtro 'Até' cobre o mês inteiro por padrão, para que a próxima
+    parcela a vencer (gerada pela recorrência como pendência futura)
+    permaneça visível na listagem.
+    """
 
     def __init__(self, repo):
         super().__init__(repo)
@@ -275,7 +293,7 @@ class PaginaLancamentos(PaginaBase):
         self.dt_ini = QDateEdit(QDate(hoje.year(), hoje.month(), 1))
         self.dt_ini.setDisplayFormat("dd/MM/yyyy")
         self.dt_ini.setCalendarPopup(True)
-        self.dt_fim = QDateEdit(hoje)
+        self.dt_fim = QDateEdit(_fim_do_mes(hoje))
         self.dt_fim.setDisplayFormat("dd/MM/yyyy")
         self.dt_fim.setCalendarPopup(True)
         self.ed_busca = QLineEdit()
@@ -607,8 +625,12 @@ class PaginaCategorias(PaginaBase):
 
 
 class PaginaRecorrencias(PaginaBase):
-    """Contas fixas mensais. Os lançamentos gerados nascem PENDENTES
-    (conta a pagar/receber) e são efetivados ao marcar como pago."""
+    """Contas fixas v2: frequência (mensal/semanal/trimestral/anual),
+    primeira ocorrência e término por data ou por quantidade (ex.: 280
+    parcelas). O botão 'Gerar pendentes agora' cria as ocorrências vencidas
+    até hoje e, quando houver, a próxima parcela a vencer — que nasce
+    PENDENTE e é efetivada ao marcar como pago. Ao atingir o término,
+    a recorrência fica 'Concluída' e deixa de gerar."""
 
     def __init__(self, repo):
         super().__init__(repo)
@@ -635,8 +657,8 @@ class PaginaRecorrencias(PaginaBase):
         raiz.addLayout(topo)
 
         self.tabela = self._montar_tabela(
-            ["Descrição", "Conta", "Categoria", "Tipo", "Valor",
-             "Dia", "Início", "Último gerado", "Status"])
+            ["Descrição", "Conta", "Categoria", "Tipo", "Valor", "Frequência",
+             "1ª ocorrência", "Próxima", "Término", "Status"])
         raiz.addWidget(self.tabela, 1)
 
         bt_novo.clicked.connect(self._novo)
@@ -648,10 +670,13 @@ class PaginaRecorrencias(PaginaBase):
         self.refrescar()
 
     @staticmethod
-    def _fmt_mes(ym):
-        if not ym or len(ym) < 7:
-            return "—"
-        return f"{ym[5:7]}/{ym[:4]}"
+    def _fmt_termino(r):
+        """Rótulo do término: data, 'Nx' ou 'Sem fim'."""
+        if r.data_fim:
+            return fmt_data(r.data_fim)
+        if r.qtd_vezes is not None:
+            return f"{r.qtd_vezes}x"
+        return "Sem fim"
 
     def refrescar(self):
         self._linhas = self.repo.listar_recorrencias()
@@ -659,15 +684,23 @@ class PaginaRecorrencias(PaginaBase):
         t.setRowCount(0)
         for r in self._linhas:
             cor = VERDE if r.tipo == "entrada" else VERMELHO
+            if r.concluida:
+                status, cor_status = "Concluída", CINZA
+            else:
+                status = "Ativa" if r.ativo else "Inativa"
+                cor_status = None if r.ativo else CINZA
             self._adicionar_linha(
                 t,
                 [r.descricao, r.conta_nome, r.categoria_nome,
                  "Entrada" if r.tipo == "entrada" else "Saída",
-                 fmt_moeda(r.valor), str(r.dia_do_mes),
-                 self._fmt_mes(r.mes_inicio), self._fmt_mes(
-                     r.ultimo_gerado or ""),
-                 "Ativa" if r.ativo else "Inativa"],
-                cor_por_col={4: cor},
+                 fmt_moeda(r.valor),
+                 ROTULOS_FREQUENCIA.get(r.frequencia, r.frequencia),
+                 fmt_data(r.data_inicio) if r.data_inicio else "—",
+                 fmt_data(r.proxima_data) if (
+                     r.proxima_data and not r.concluida) else "—",
+                 self._fmt_termino(r),
+                 status],
+                cor_por_col={4: cor, 9: cor_status},
                 alinhar_direita=(4,))
 
     def _selecionado(self):
@@ -717,9 +750,11 @@ class PaginaRecorrencias(PaginaBase):
         except Exception as e:
             self._exibir_erro(e)
             return
-        msg = (f"{gerados} lançamento(s) gerado(s) até o mês corrente.\n\n"
-               "Os lançamentos gerados nascem como PENDENTES — marque-os como "
-               "pagos em Lançamentos quando efetivar.")
+        msg = (f"{gerados} lançamento(s) gerado(s).\n\n"
+               "A geração cria as ocorrências já vencidas até hoje e, quando "
+               "houver, a PRÓXIMA parcela a vencer. Os lançamentos gerados "
+               "nascem como PENDENTES — marque-os como pagos em Lançamentos "
+               "quando efetivar.")
         if puladas:
             msg += "\n\nNão puderam ser geradas: " + ", ".join(puladas)
         if gerados:
@@ -763,7 +798,7 @@ class PaginaRelatorios(PaginaBase):
         self.dt_ini = QDateEdit(QDate(ano, mes, 1))
         self.dt_ini.setDisplayFormat("dd/MM/yyyy")
         self.dt_ini.setCalendarPopup(True)
-        self.dt_fim = QDateEdit(hoje)
+        self.dt_fim = QDateEdit(_fim_do_mes(hoje))
         self.dt_fim.setDisplayFormat("dd/MM/yyyy")
         self.dt_fim.setCalendarPopup(True)
         self.cb_conta_f = QComboBox()
@@ -847,7 +882,7 @@ class PaginaRelatorios(PaginaBase):
     def _linha_total(tabela, valores):
         r = tabela.rowCount()
         tabela.insertRow(r)
-        fonte = QFont()
+        fonte = tabela.font()
         fonte.setBold(True)
         for col, texto in enumerate(valores):
             it = QTableWidgetItem(texto)
@@ -1067,11 +1102,12 @@ class PaginaUsuarios(PaginaBase):
         if not u:
             return
         acao = "desativar" if u.ativo else "reativar"
+        detalhe = ("O usuário não poderá mais fazer login até ser reativado."
+                   if u.ativo else
+                   "O usuário voltará a poder fazer login normalmente.")
         if not self._confirmar(
                 "Alterar status",
-                f"{acao} a conta de '{u.nome}' ({u.email})?\n\n"
-                ("O usuário não poderá mais fazer login até ser reativado."
-                 if u.ativo else "O usuário voltará a poder fazer login normalmente.")):
+                f"{acao} a conta de '{u.nome}' ({u.email})?\n\n{detalhe}"):
             return
         try:
             novo = self.repo_usuarios.alternar_ativo(

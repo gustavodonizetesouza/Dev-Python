@@ -1,15 +1,24 @@
-"""Diálogos de cadastro: contas, categorias, lançamentos, recorrências e usuários."""
+"""Diálogos de cadastro: contas, categorias, lançamentos, recorrências e usuários.
+
+DialogoRecorrencia (v2): frequência mensal/semanal/trimestral/anual,
+primeira ocorrência (data completa) e término opcional por data ou por
+quantidade de vezes (ex.: 280 parcelas de um financiamento).
+"""
 from PyQt6.QtCore import QDate, Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDateEdit,
                              QDialog, QDialogButtonBox, QDoubleSpinBox,
-                             QFormLayout, QLabel, QLineEdit, QPushButton,
-                             QSpinBox, QVBoxLayout)
+                             QFormLayout, QHBoxLayout, QLabel, QLineEdit,
+                             QPushButton, QRadioButton, QSpinBox, QVBoxLayout,
+                             QWidget)
 
 from core.seguranca import validar_senha_forte
 from dominio.repositorio import Repositorio
 
 TIPOS_CONTA = ["Corrente", "Poupança", "Cartão", "Dinheiro", "Investimento"]
+
+FREQUENCIAS = [("Mensal", "mensal"), ("Semanal", "semanal"),
+               ("Trimestral", "trimestral"), ("Anual", "anual")]
 
 
 class DialogoBase(QDialog):
@@ -246,7 +255,60 @@ class DialogoLancamento(DialogoBase):
                     pago=1 if self.ck_pago.isChecked() else 0)
 
 
+class _LinhaTérmino(QWidget):
+    """Linha do formulário com os 3 modos de término e seus campos.
+
+    - 'Sem fim': gera para sempre (comportamento clássico).
+    - 'Até a data': gera enquanto a ocorrência <= data de término.
+    - 'Por quantidade': gera até atingir N ocorrências (ex.: 280 parcelas).
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        self.rb_sem_fim = QRadioButton("Sem fim")
+        self.rb_data = QRadioButton("Até a data:")
+        self.rb_qtd = QRadioButton("Por quantidade:")
+        self.rb_sem_fim.setChecked(True)
+
+        self.ed_data = QDateEdit(QDate.currentDate().addMonths(12))
+        self.ed_data.setDisplayFormat("dd/MM/yyyy")
+        self.ed_data.setCalendarPopup(True)
+
+        self.sp_qtd = QSpinBox()
+        self.sp_qtd.setRange(1, 999_999)
+        self.sp_qtd.setValue(12)
+
+        layout.addWidget(self.rb_sem_fim)
+        layout.addWidget(self.rb_data)
+        layout.addWidget(self.ed_data)
+        layout.addWidget(self.rb_qtd)
+        layout.addWidget(self.sp_qtd)
+        layout.addStretch()
+
+        self.rb_sem_fim.toggled.connect(self._atualizar_habilitados)
+        self.rb_data.toggled.connect(self._atualizar_habilitados)
+        self.rb_qtd.toggled.connect(self._atualizar_habilitados)
+        self._atualizar_habilitados()
+
+    def _atualizar_habilitados(self):
+        self.ed_data.setEnabled(self.rb_data.isChecked())
+        self.sp_qtd.setEnabled(self.rb_qtd.isChecked())
+
+
 class DialogoRecorrencia(DialogoBase):
+    """Recorrência v2: frequência + primeira ocorrência + término opcional.
+
+    A frequência define o passo entre ocorrências (mensal = 1 mês,
+    semanal = 7 dias, trimestral = 3 meses, anual = 12 meses). O dia do mês
+    e o dia da semana derivam da primeira ocorrência. O término pode ser
+    por data ou por quantidade de vezes (ex.: 280 parcelas); sem término,
+    gera para sempre.
+    """
+
     def __init__(self, repo: Repositorio, recorrencia=None, parent=None):
         super().__init__("Editar recorrência" if recorrencia else "Nova recorrência", parent)
         self.repo = repo
@@ -262,12 +324,18 @@ class DialogoRecorrencia(DialogoBase):
             self.cb_conta.addItem(conta.nome, conta.id)
         self.cb_categoria = QComboBox()
         self.sp_valor = DialogoBase._spin_moeda()
-        self.sp_dia = QSpinBox()
-        self.sp_dia.setRange(1, 31)
+
+        self.cb_frequencia = QComboBox()
+        for rotulo, valor in FREQUENCIAS:
+            self.cb_frequencia.addItem(rotulo, valor)
+
         hoje = QDate.currentDate()
-        self.ed_inicio = QDateEdit(QDate(hoje.year(), hoje.month(), 1))
-        self.ed_inicio.setDisplayFormat("MM/yyyy")
+        self.ed_inicio = QDateEdit(hoje)
+        self.ed_inicio.setDisplayFormat("dd/MM/yyyy")
         self.ed_inicio.setCalendarPopup(True)
+
+        self.linha_termino = _LinhaTérmino()
+
         self.ck_ativo = QCheckBox("Recorrência ativa")
         self.ck_ativo.setChecked(True)
 
@@ -276,8 +344,9 @@ class DialogoRecorrencia(DialogoBase):
         self.form.addRow("Conta*", self.cb_conta)
         self.form.addRow("Categoria*", self.cb_categoria)
         self.form.addRow("Valor*", self.sp_valor)
-        self.form.addRow("Dia do mês", self.sp_dia)
-        self.form.addRow("Início em", self.ed_inicio)
+        self.form.addRow("Frequência", self.cb_frequencia)
+        self.form.addRow("1ª ocorrência", self.ed_inicio)
+        self.form.addRow("Término", self.linha_termino)
         self.form.addRow("", self.ck_ativo)
 
         self.cb_tipo.currentIndexChanged.connect(
@@ -291,9 +360,20 @@ class DialogoRecorrencia(DialogoBase):
             self.cb_conta.setCurrentIndex(
                 self.cb_conta.findData(recorrencia.conta_id))
             self.sp_valor.setValue(recorrencia.valor)
-            self.sp_dia.setValue(recorrencia.dia_do_mes)
-            a, m = (int(x) for x in recorrencia.mes_inicio.split("-")[:2])
-            self.ed_inicio.setDate(QDate(a, m, 1))
+            i = self.cb_frequencia.findData(recorrencia.frequencia)
+            self.cb_frequencia.setCurrentIndex(max(0, i))
+            if recorrencia.data_inicio:
+                a, m, d = (int(x)
+                           for x in recorrencia.data_inicio[:10].split("-"))
+                self.ed_inicio.setDate(QDate(a, m, d))
+            if recorrencia.data_fim:
+                a, m, d = (int(x)
+                           for x in recorrencia.data_fim[:10].split("-"))
+                self.linha_termino.rb_data.setChecked(True)
+                self.linha_termino.ed_data.setDate(QDate(a, m, d))
+            elif recorrencia.qtd_vezes is not None:
+                self.linha_termino.rb_qtd.setChecked(True)
+                self.linha_termino.sp_qtd.setValue(recorrencia.qtd_vezes)
             self.ck_ativo.setChecked(bool(recorrencia.ativo))
         else:
             self._recarregar_categorias()
@@ -317,15 +397,28 @@ class DialogoRecorrencia(DialogoBase):
             return "Cadastre uma categoria antes."
         if self.sp_valor.value() <= 0:
             return "Informe um valor maior que zero."
+        linha = self.linha_termino
+        if linha.rb_qtd.isChecked() and linha.sp_qtd.value() <= 0:
+            return "Informe uma quantidade de ocorrências maior que zero."
+        if linha.rb_data.isChecked():
+            dt_fim = linha.ed_data.date()
+            if dt_fim < self.ed_inicio.date():
+                return "A data de término não pode ser anterior à 1ª ocorrência."
         return None
 
     def dados(self):
+        linha = self.linha_termino
+        data_fim = linha.ed_data.date().toString("yyyy-MM-dd") \
+            if linha.rb_data.isChecked() else None
+        qtd_vezes = linha.sp_qtd.value() if linha.rb_qtd.isChecked() else None
         return dict(descricao=self.ed_descricao.text().strip(),
                     conta_id=self.cb_conta.currentData(),
                     categoria_id=self.cb_categoria.currentData(),
                     tipo=self.cb_tipo.currentData(), valor=self.sp_valor.value(),
-                    dia_do_mes=self.sp_dia.value(),
-                    mes_inicio=self.ed_inicio.date().toString("yyyy-MM"),
+                    frequencia=self.cb_frequencia.currentData(),
+                    data_inicio=self.ed_inicio.date().toString("yyyy-MM-dd"),
+                    data_fim=data_fim,
+                    qtd_vezes=qtd_vezes,
                     ativo=1 if self.ck_ativo.isChecked() else 0)
 
 

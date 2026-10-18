@@ -2,19 +2,27 @@
 (SQLite e SQL Server).
 
 Estrutura multiusuário: tabela usuarios + coluna usuario_id em TODAS as
-entidades (contas, categorias, lancamentos, recorrencias). O isolamento
-por usuário acontece nas consultas do repositório (multi-tenancy lógico).
+entidades. O isolamento por usuário acontece nas consultas do repositório
+(multi-tenancy lógico). A semeadura das 11 categorias padrão é POR USUÁRIO,
+no momento do cadastro.
 
-A semeadura das 11 categorias padrão agora é POR USUÁRIO, executada no
-momento do cadastro (ver dominio.repositorio.RepositorioUsuarios.semear_categorias).
+Recorrências v2: frequência (mensal/semanal/trimestral/anual), primeira
+ocorrência (data_inicio), término opcional por data (data_fim) ou por
+quantidade (qtd_vezes) e contadores (geradas, ultimo_gerado_data).
+As colunas antigas mes_inicio, dia_do_mes e ultimo_gerado permanecem no
+banco apenas para compatibilidade com bancos já existentes (deprecadas —
+novos INSERTs não as utilizam) e são convertidas pela migração de dados.
 
-Migrações: como CREATE TABLE IF NOT EXISTS não altera tabelas existentes,
-as evoluções de coluna são aplicadas por migrações idempotentes (verificam
-se a coluna já existe antes do ALTER TABLE). A migração "pago" adiciona o
-controle de contas a pagar/receber aos lançamentos existentes, marcando
-todos como pagos (pago = 1) para preservar o comportamento anterior.
+Migrações idempotentes em duas camadas:
+- ALTER TABLE para colunas novas (só aplica se a coluna não existir).
+- Conversão de dados em Python para o modelo novo de recorrências
+  (mes_inicio + dia_do_mes -> data_inicio; ultimo_gerado -> ultimo_gerado_data;
+  geradas calculado retroativamente).
 """
+from calendar import monthrange
+
 from core.conexao import DIALETO_SQLITE, DIALETO_SQLSERVER
+from core.util import dias_no_mes
 
 DDL = [
     # ---------- usuarios (primeira tabela: referenciada por FK nas demais) ----------
@@ -102,22 +110,32 @@ DDL = [
                     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
                 )""",
     },
-    # ---------- recorrencias ----------
+    # ---------- recorrencias (v2: frequência + término por data/quantidade) ----------
+    # Colunas legadas (mes_inicio, dia_do_mes, ultimo_gerado) mantidas com
+    # defaults para não quebrar bancos antigos; novos INSERTs não as utilizam.
     {
         DIALETO_SQLITE: """
             CREATE TABLE IF NOT EXISTS recorrencias (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                usuario_id    INTEGER NOT NULL,
-                descricao     TEXT NOT NULL,
-                conta_id      INTEGER NOT NULL,
-                categoria_id  INTEGER NOT NULL,
-                tipo          TEXT NOT NULL CHECK (tipo IN ('entrada', 'saida')),
-                valor         REAL NOT NULL CHECK (valor > 0),
-                dia_do_mes    INTEGER NOT NULL CHECK (dia_do_mes BETWEEN 1 AND 31),
-                mes_inicio    TEXT NOT NULL,
-                ativo         INTEGER NOT NULL DEFAULT 1,
-                ultimo_gerado TEXT,
-                criado_em     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                usuario_id         INTEGER NOT NULL,
+                descricao          TEXT NOT NULL,
+                conta_id           INTEGER NOT NULL,
+                categoria_id       INTEGER NOT NULL,
+                tipo               TEXT NOT NULL CHECK (tipo IN ('entrada', 'saida')),
+                valor              REAL NOT NULL CHECK (valor > 0),
+                frequencia         TEXT NOT NULL DEFAULT 'mensal'
+                                   CHECK (frequencia IN ('mensal', 'semanal',
+                                                         'trimestral', 'anual')),
+                data_inicio        TEXT,
+                data_fim           TEXT,
+                qtd_vezes          INTEGER,
+                geradas            INTEGER NOT NULL DEFAULT 0,
+                ultimo_gerado_data TEXT,
+                mes_inicio         TEXT NOT NULL DEFAULT '',
+                dia_do_mes         INTEGER NOT NULL DEFAULT 1,
+                ultimo_gerado      TEXT,
+                ativo              INTEGER NOT NULL DEFAULT 1,
+                criado_em          TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
                 FOREIGN KEY (conta_id) REFERENCES contas(id),
                 FOREIGN KEY (categoria_id) REFERENCES categorias(id)
@@ -125,18 +143,27 @@ DDL = [
         DIALETO_SQLSERVER: """
             IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'recorrencias')
                 CREATE TABLE recorrencias (
-                    id            INT IDENTITY(1,1) PRIMARY KEY,
-                    usuario_id    INT NOT NULL,
-                    descricao     NVARCHAR(160) NOT NULL,
-                    conta_id      INT NOT NULL,
-                    categoria_id  INT NOT NULL,
-                    tipo          NVARCHAR(10) NOT NULL CHECK (tipo IN ('entrada', 'saida')),
-                    valor         DECIMAL(14,2) NOT NULL CHECK (valor > 0),
-                    dia_do_mes    INT NOT NULL CHECK (dia_do_mes BETWEEN 1 AND 31),
-                    mes_inicio    CHAR(7) NOT NULL,
-                    ativo         BIT NOT NULL DEFAULT 1,
-                    ultimo_gerado CHAR(7) NULL,
-                    criado_em     DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+                    id                 INT IDENTITY(1,1) PRIMARY KEY,
+                    usuario_id         INT NOT NULL,
+                    descricao          NVARCHAR(160) NOT NULL,
+                    conta_id           INT NOT NULL,
+                    categoria_id       INT NOT NULL,
+                    tipo               NVARCHAR(10) NOT NULL
+                                       CHECK (tipo IN ('entrada', 'saida')),
+                    valor              DECIMAL(14,2) NOT NULL CHECK (valor > 0),
+                    frequencia         NVARCHAR(10) NOT NULL DEFAULT 'mensal'
+                                       CHECK (frequencia IN ('mensal', 'semanal',
+                                                             'trimestral', 'anual')),
+                    data_inicio        DATE NULL,
+                    data_fim           DATE NULL,
+                    qtd_vezes          INT NULL,
+                    geradas            INT NOT NULL DEFAULT 0,
+                    ultimo_gerado_data DATE NULL,
+                    mes_inicio         NVARCHAR(7) NOT NULL DEFAULT '',
+                    dia_do_mes         INT NOT NULL DEFAULT 1,
+                    ultimo_gerado      CHAR(7) NULL,
+                    ativo              BIT NOT NULL DEFAULT 1,
+                    criado_em          DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
                     FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
                     FOREIGN KEY (conta_id) REFERENCES contas(id),
                     FOREIGN KEY (categoria_id) REFERENCES categorias(id)
@@ -237,10 +264,37 @@ INDICES = [
     },
 ]
 
-# ----- migrações leves (evolução de schema em bancos já existentes) -----
-# Executadas no arranque, idempotentes: só aplicam se a coluna não existir.
-# "pago": controla contas a pagar/receber. Dados anteriores = pagos (1),
-# preservando o comportamento e os números anteriores à migração.
+# ----- ALTERs das colunas novas de recorrências (idempotentes) -----
+# Em SQLite, ADD COLUMN aceita NOT NULL apenas com DEFAULT — os legados
+# recebem defaults permissivos; o SQL Server segue o mesmo desenho.
+ALTER_RECORRENCIAS = [
+    ("frequencia", {
+        DIALETO_SQLITE: "ALTER TABLE recorrencias ADD COLUMN frequencia TEXT NOT NULL DEFAULT 'mensal'",
+        DIALETO_SQLSERVER: "ALTER TABLE recorrencias ADD frequencia NVARCHAR(10) NOT NULL DEFAULT 'mensal'",
+    }),
+    ("data_inicio", {
+        DIALETO_SQLITE: "ALTER TABLE recorrencias ADD COLUMN data_inicio TEXT",
+        DIALETO_SQLSERVER: "ALTER TABLE recorrencias ADD data_inicio DATE NULL",
+    }),
+    ("data_fim", {
+        DIALETO_SQLITE: "ALTER TABLE recorrencias ADD COLUMN data_fim TEXT",
+        DIALETO_SQLSERVER: "ALTER TABLE recorrencias ADD data_fim DATE NULL",
+    }),
+    ("qtd_vezes", {
+        DIALETO_SQLITE: "ALTER TABLE recorrencias ADD COLUMN qtd_vezes INTEGER",
+        DIALETO_SQLSERVER: "ALTER TABLE recorrencias ADD qtd_vezes INT NULL",
+    }),
+    ("geradas", {
+        DIALETO_SQLITE: "ALTER TABLE recorrencias ADD COLUMN geradas INTEGER NOT NULL DEFAULT 0",
+        DIALETO_SQLSERVER: "ALTER TABLE recorrencias ADD geradas INT NOT NULL DEFAULT 0",
+    }),
+    ("ultimo_gerado_data", {
+        DIALETO_SQLITE: "ALTER TABLE recorrencias ADD COLUMN ultimo_gerado_data TEXT",
+        DIALETO_SQLSERVER: "ALTER TABLE recorrencias ADD ultimo_gerado_data DATE NULL",
+    }),
+]
+
+# ----- migração da flag pago dos lançamentos (bancos anteriores) -----
 MIGRACAO_PAGO = {
     DIALETO_SQLITE: "ALTER TABLE lancamentos ADD COLUMN pago INTEGER NOT NULL DEFAULT 1",
     DIALETO_SQLSERVER: "ALTER TABLE lancamentos ADD pago BIT NOT NULL DEFAULT 1",
@@ -273,10 +327,62 @@ def _coluna_existe(db, tabela: str, coluna: str) -> bool:
     return linhas[0]["t"] > 0
 
 
+def _migrar_dados_recorrencias(db):
+    """Converte recorrências do modelo antigo (mes_inicio + dia_do_mes,
+    sempre mensal) para o modelo v2.
+
+    - data_inicio: primeiro dia de mes_inicio com dia_do_mes ajustado ao
+      tamanho real do mês (dia 31 em fev vira o último dia de fev).
+    - ultimo_gerado_data: mesma regra aplicada ao último mês gerado.
+    - geradas: nº de ocorrências mensais entre data_inicio e o último mês
+      gerado (contagem retroativa — a geração continua de onde parou).
+
+    Só roda se existir a coluna legada mes_inicio e houver linhas com
+    data_inicio NULL (bancos novos nunca entram aqui).
+    """
+    if not _coluna_existe(db, "recorrencias", "mes_inicio"):
+        return
+    linhas = db.consultar(
+        """SELECT id, mes_inicio, dia_do_mes, ultimo_gerado FROM recorrencias
+           WHERE data_inicio IS NULL""")
+    for l in linhas:
+        mes_inicio = str(l["mes_inicio"] or "").strip()
+        if len(mes_inicio) < 7:
+            continue  # sem origem válida: fica para o usuário corrigir na UI
+        try:
+            ano_i, mes_i = int(mes_inicio[:4]), int(mes_inicio[5:7])
+            dia = int(l["dia_do_mes"] or 1)
+        except (ValueError, TypeError):
+            continue
+        dia = max(1, min(dia, dias_no_mes(ano_i, mes_i)))
+        data_inicio = f"{ano_i:04d}-{mes_i:02d}-{dia:02d}"
+
+        geradas = 0
+        ultimo_data = None
+        ug = str(l["ultimo_gerado"] or "").strip()[:7]
+        if len(ug) == 7:
+            try:
+                ano_u, mes_u = int(ug[:4]), int(ug[5:7])
+                dia_u = max(1, min(dia, dias_no_mes(ano_u, mes_u)))
+                ultimo_data = f"{ano_u:04d}-{mes_u:02d}-{dia_u:02d}"
+                geradas = max(1, (ano_u - ano_i) * 12 + (mes_u - mes_i) + 1)
+            except (ValueError, TypeError):
+                pass
+        db.executar(
+            """UPDATE recorrencias SET data_inicio = ?, frequencia = 'mensal',
+               ultimo_gerado_data = ?, geradas = ? WHERE id = ?""",
+            (data_inicio, ultimo_data, geradas, l["id"]), commitar=False)
+    db.confirmar()
+
+
 def _migrar(db):
-    """Aplica migrações idempotentes de coluna."""
+    """Aplica todas as migrações idempotentes (estrutura e dados)."""
     if not _coluna_existe(db, "lancamentos", "pago"):
         db.executar(MIGRACAO_PAGO[db.dialeto])
+    for coluna, sqls in ALTER_RECORRENCIAS:
+        if not _coluna_existe(db, "recorrencias", coluna):
+            db.executar(sqls[db.dialeto])
+    _migrar_dados_recorrencias(db)
 
 
 def inicializar_banco(db):

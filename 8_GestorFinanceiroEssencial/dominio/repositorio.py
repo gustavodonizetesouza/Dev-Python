@@ -1,5 +1,5 @@
 """Modelos + repositórios — SQL portável (SQLite e SQL Server) com isolamento
-multiusuário e controle de contas a pagar/receber.
+multiusuário, controle de contas a pagar/receber e recorrências v2.
 
 Dois repositórios:
 - RepositorioUsuarios: cadastro, autenticação e administração de usuários.
@@ -9,16 +9,28 @@ Dois repositórios:
 Contas a pagar/receber: cada lançamento tem a flag `pago` (1 = pago/recebido,
 0 = pendente). O saldo efetivo considera apenas lançamentos pagos; o saldo
 previsto considera tudo (como se todas as pendências liquidassem). Os KPIs
-separam realizado (pagos) de previsto (pendentes do mês). Lançamentos gerados
-por recorrência nascem PENDENTES: a recorrência cria a obrigação e o usuário
-marca como pago ao efetivar.
+separam realizado (pagos) de previsto (pendentes do mês).
+
+Recorrências v2: frequência mensal/semanal/trimestral/anual, primeira
+ocorrência (data_inicio) e término opcional por data (data_fim) ou por
+quantidade de vezes (qtd_vezes, ex.: 280 parcelas). O contador `geradas`
+cresce a cada lançamento gerado; ao atingir o limite, a recorrência fica
+"Concluída" e deixa de gerar. Lançamentos gerados nascem PENDENTES
+(pago = 0): a recorrência cria a obrigação e o usuário marca como pago ao
+efetivar. A edição de frequência/datas afeta apenas gerações futuras.
+
+Geração (gerar_pendentes): cria as ocorrências vencidas até hoje e, quando
+houver, a PRÓXIMA ocorrência a vencer (1 projeção à frente) — é ela que
+alimenta a previsão "A pagar/A receber" do dashboard antes do vencimento.
+Nunca projeta 2 ou mais ocorrências futuras: se a última gerada já está no
+futuro, nada é criado (idempotente).
 
 O admin gerencia cadastros (RepositorioUsuarios), mas NÃO acessa dados
 financeiros de outros usuários: o isolamento por usuario_id vale para todos,
 inclusive admins.
 """
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Optional
 
 from core.conexao import BancoDados
@@ -26,6 +38,8 @@ from core.schema import CATEGORIAS_INICIAIS
 from core.seguranca import hash_senha, validar_senha_forte, verificar_senha
 from core.util import (avancar_mes, dias_no_mes, fmt_mes_curto, mes_anterior,
                        primeiro_dia, ultimo_dia)
+
+FREQUENCIAS = ("mensal", "semanal", "trimestral", "anual")
 
 
 class ErroRegraNegocio(Exception):
@@ -95,10 +109,16 @@ class Recorrencia:
     categoria_nome: str = ""
     tipo: str = "saida"
     valor: float = 0.0
-    dia_do_mes: int = 1
-    mes_inicio: str = ""
-    ativo: int = 1
+    frequencia: str = "mensal"           # mensal | semanal | trimestral | anual
+    data_inicio: Optional[str] = None    # ISO — primeira ocorrência
+    data_fim: Optional[str] = None       # ISO — término por data (opcional)
+    qtd_vezes: Optional[int] = None      # término por quantidade (opcional)
+    geradas: int = 0                     # ocorrências já geradas
+    # ISO — data da última ocorrência gerada
     ultimo_gerado: Optional[str] = None
+    ativo: int = 1
+    proxima_data: Optional[str] = None   # calculado — próxima ocorrência
+    concluida: bool = False              # calculado — atingiu o término
 
 
 @dataclass
@@ -125,6 +145,40 @@ def _para_iso(valor) -> str:
     if isinstance(valor, (date, datetime)):
         return valor.isoformat()[:10]
     return valor or ""
+
+
+def _para_data(valor) -> Optional[date]:
+    """Converte ISO/DATE para date; retorna None se inválido."""
+    iso = _para_iso(valor)
+    if not iso:
+        return None
+    try:
+        return date.fromisoformat(iso[:10])
+    except ValueError:
+        return None
+
+
+def _mesmo_dia_proximo_mes(d: date, meses: int) -> date:
+    """Avança N meses mantendo o dia (ajustado ao tamanho real do mês).
+
+    Ex.: dia 31 em fev vira 28/29; dia 29 em fev/2028 (bissexto) vira 29.
+    """
+    total = d.month - 1 + meses
+    ano = d.year + total // 12
+    mes = total % 12 + 1
+    dia = min(d.day, dias_no_mes(ano, mes))
+    return date(ano, mes, dia)
+
+
+def _avancar_ocorrencia(data: date, frequencia: str) -> date:
+    """Próxima ocorrência após a data informada, conforme a frequência."""
+    if frequencia == "semanal":
+        return data + timedelta(days=7)
+    if frequencia == "trimestral":
+        return _mesmo_dia_proximo_mes(data, 3)
+    if frequencia == "anual":
+        return _mesmo_dia_proximo_mes(data, 12)
+    return _mesmo_dia_proximo_mes(data, 1)  # mensal (padrão)
 
 
 # ----------------------- repositório de usuários -----------------------
@@ -636,12 +690,15 @@ class Repositorio:
             ya, ma = avancar_mes(ya, ma)
         return serie
 
-    # ===================== RECORRÊNCIAS =====================
+    # ===================== RECORRÊNCIAS (v2) =====================
     def listar_recorrencias(self, apenas_ativas=False):
+        """Lista recorrências do usuário, calculando próxima ocorrência e
+        status "concluída" (atingiu data_fim ou qtd_vezes)."""
         sql = """
             SELECT r.id, r.descricao, r.conta_id, c.nome AS conta_nome,
                    r.categoria_id, g.nome AS categoria_nome,
-                   r.tipo, r.valor, r.dia_do_mes, r.mes_inicio, r.ativo, r.ultimo_gerado
+                   r.tipo, r.valor, r.frequencia, r.data_inicio, r.data_fim,
+                   r.qtd_vezes, r.geradas, r.ultimo_gerado_data, r.ativo
             FROM recorrencias r
             JOIN contas c ON c.id = r.conta_id
             JOIN categorias g ON g.id = r.categoria_id
@@ -653,87 +710,173 @@ class Repositorio:
 
         recs = []
         for r in self.db.consultar(sql, (self.usuario_id,)):
+            frequencia = r["frequencia"] or "mensal"
+            if frequencia not in FREQUENCIAS:
+                frequencia = "mensal"
+            data_inicio = _para_iso(
+                r["data_inicio"]) if r["data_inicio"] else None
+            data_fim = _para_iso(r["data_fim"]) if r["data_fim"] else None
+            ultimo = _para_iso(r["ultimo_gerado_data"]
+                               ) if r["ultimo_gerado_data"] else None
+            qtd_vezes = int(
+                r["qtd_vezes"]) if r["qtd_vezes"] is not None else None
+            geradas = int(r["geradas"] or 0)
+
+            # Próxima ocorrência: a primeira, se nunca gerou; senão a seguinte.
+            if ultimo:
+                proxima = _avancar_ocorrencia(_para_data(ultimo), frequencia)
+            else:
+                proxima = _para_data(data_inicio)
+            proxima_iso = proxima.isoformat() if proxima else None
+
+            concluida = False
+            if data_fim and proxima and proxima > _para_data(data_fim):
+                concluida = True  # próxima já passaria do término
+            if qtd_vezes is not None and geradas >= qtd_vezes:
+                concluida = True
+
             rec = Recorrencia(
                 id=r["id"], descricao=r["descricao"], conta_id=r["conta_id"],
                 conta_nome=r["conta_nome"], categoria_id=r["categoria_id"],
-                categoria_nome=r["categoria_nome"], tipo=r["tipo"], valor=_num(
-                    r["valor"]),
-                dia_do_mes=int(r["dia_do_mes"]),
-                mes_inicio=str(r["mes_inicio"]).strip(),
-                ultimo_gerado=str(r["ultimo_gerado"]).strip() if r["ultimo_gerado"] else None)
+                categoria_nome=r["categoria_nome"], tipo=r["tipo"],
+                valor=_num(r["valor"]), frequencia=frequencia,
+                data_inicio=data_inicio, data_fim=data_fim,
+                qtd_vezes=qtd_vezes, geradas=geradas, ultimo_gerado=ultimo,
+                proxima_data=proxima_iso, concluida=concluida)
             rec.ativo = 1 if r["ativo"] in (1, True) else 0
             recs.append(rec)
         return recs
 
     def salvar_recorrencia(self, descricao, conta_id, categoria_id, tipo, valor,
-                           dia_do_mes, mes_inicio, ativo=1, id=None):
+                           frequencia="mensal", data_inicio=None, data_fim=None,
+                           qtd_vezes=None, ativo=1, id=None):
+        """Cria ou edita uma recorrência (v2).
+
+        geradas e ultimo_gerado_data são internos (não passam pelo diálogo).
+        A edição de frequência/datas afeta apenas gerações futuras — o
+        histórico de lançamentos já gerados nunca é reescrito.
+
+        Compatibilidade com bancos criados pelo esquema antigo: as colunas
+        legadas mes_inicio e dia_do_mes são NOT NULL sem DEFAULT, por isso
+        são preenchidas aqui derivadas da 1ª ocorrência (write-only; a lógica
+        v2 não as utiliza).
+        """
+        if frequencia not in FREQUENCIAS:
+            frequencia = "mensal"
+        if data_inicio and len(data_inicio) >= 10:
+            mes_inicio_legado = data_inicio[:7]
+            dia_legado = int(data_inicio[8:10])
+        else:
+            mes_inicio_legado = ""
+            dia_legado = 1
         if id:
             self.db.executar(
                 """UPDATE recorrencias SET descricao = ?, conta_id = ?, categoria_id = ?,
-                   tipo = ?, valor = ?, dia_do_mes = ?, mes_inicio = ?, ativo = ?
+                   tipo = ?, valor = ?, frequencia = ?, data_inicio = ?,
+                   data_fim = ?, qtd_vezes = ?, ativo = ?,
+                   mes_inicio = ?, dia_do_mes = ?
                    WHERE id = ? AND usuario_id = ?""",
-                (descricao, conta_id, categoria_id, tipo, valor, dia_do_mes,
-                 mes_inicio, int(ativo), id, self.usuario_id))
+                (descricao, conta_id, categoria_id, tipo, valor, frequencia,
+                 data_inicio or None, data_fim or None,
+                 int(qtd_vezes) if qtd_vezes else None,
+                 int(ativo), mes_inicio_legado, dia_legado,
+                 id, self.usuario_id))
             return id
         return self.db.inserir(
             """INSERT INTO recorrencias
                (usuario_id, descricao, conta_id, categoria_id, tipo, valor,
-                dia_do_mes, mes_inicio, ativo)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                frequencia, data_inicio, data_fim, qtd_vezes, geradas, ativo,
+                mes_inicio, dia_do_mes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)""",
             (self.usuario_id, descricao, conta_id, categoria_id, tipo, valor,
-             dia_do_mes, mes_inicio, int(ativo)))
+             frequencia, data_inicio or None, data_fim or None,
+             int(qtd_vezes) if qtd_vezes else None, int(ativo),
+             mes_inicio_legado, dia_legado))
 
     def excluir_recorrencia(self, id):
         self.db.executar("DELETE FROM recorrencias WHERE id = ? AND usuario_id = ?",
                          (id, self.usuario_id))
 
     def gerar_pendentes(self, hoje=None):
-        """Gera lançamentos das recorrências ATIVAS DO USUÁRIO até o mês corrente.
+        """Gera lançamentos das recorrências ATIVAS DO USUÁRIO.
 
-        Os lançamentos gerados nascem PENDENTES (pago = 0): a recorrência cria
-        a obrigação (conta a pagar/receber) e o usuário marca como pago ao
-        efetivar. Preenche os meses entre max(mes_inicio, ultimo_gerado + 1) e
-        o mês corrente, ajustando o dia quando o mês é mais curto (ex.: dia 31
-        em fev). Retorna (gerados, puladas).
+        Gera TODAS as ocorrências já vencidas (data <= hoje) que ainda não
+        foram geradas e, quando houver, a PRÓXIMA ocorrência a vencer
+        (1 projeção à frente) — é ela que alimenta a previsão
+        "A pagar/A receber" do dashboard antes do vencimento. Nunca projeta
+        2 ou mais ocorrências futuras: se a última gerada já estiver no
+        futuro, nada é criado (cliques repetidos são idempotentes).
+
+        Para em:
+        - data_fim (término por data),
+        - qtd_vezes (término por quantidade — contador `geradas`).
+
+        Os lançamentos gerados nascem PENDENTES (pago = 0). Retorna
+        (gerados, puladas).
         """
         hoje = hoje or date.today()
-        mes_atual = f"{hoje.year:04d}-{hoje.month:02d}"
         gerados = 0
         puladas = []
         for rec in self.listar_recorrencias(apenas_ativas=True):
-            if not rec.ativo:
+            if not rec.ativo or rec.concluida:
                 continue
-            inicio = str(rec.mes_inicio or "")[:7]
+            if not rec.data_inicio:
+                puladas.append(rec.descricao)
+                continue
+            inicio = _para_data(rec.data_inicio)
             if not inicio:
                 puladas.append(rec.descricao)
                 continue
-            if rec.ultimo_gerado and rec.ultimo_gerado[:7] >= mes_atual:
-                puladas.append(rec.descricao)
-                continue
-            partindo = max(inicio, (rec.ultimo_gerado or "")[:7])
-            try:
-                ya, ma = int(partindo[:4]), int(partindo[5:7])
-            except ValueError:
-                puladas.append(rec.descricao)
-                continue
-            if rec.ultimo_gerado:
-                ya, ma = avancar_mes(ya, ma)
-            while f"{ya:04d}-{ma:02d}" <= mes_atual:
-                chave = f"{ya:04d}-{ma:02d}"
-                dia = min(rec.dia_do_mes, dias_no_mes(ya, ma))
-                data_mov = f"{ya:04d}-{ma:02d}-{dia:02d}"
+            data_fim = _para_data(rec.data_fim) if rec.data_fim else None
+            qtd_vezes = rec.qtd_vezes
+            ultima = _para_data(
+                rec.ultimo_gerado) if rec.ultimo_gerado else None
+
+            # Primeira data a gerar: a inicial, ou a seguinte da última gerada.
+            data = _avancar_ocorrencia(
+                ultima, rec.frequencia) if ultima else inicio
+
+            while True:
+                if data_fim and data > data_fim:
+                    break
+                if qtd_vezes is not None and rec.geradas >= qtd_vezes:
+                    break
+                if data > hoje:
+                    # Projeção: gera apenas a PRÓXIMA ocorrência a vencer.
+                    # Se a última gerada já está no futuro, o agendamento
+                    # futuro já existe — nada a criar.
+                    if ultima and ultima > hoje:
+                        break
+                    self.db.executar(
+                        """INSERT INTO lancamentos
+                           (usuario_id, conta_id, categoria_id, tipo, valor, data_mov,
+                            descricao, pago, recorrencia_id)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)""",
+                        (self.usuario_id, rec.conta_id, rec.categoria_id, rec.tipo,
+                         rec.valor, data.isoformat(),
+                         f"{rec.descricao} (recorrente)", rec.id), commitar=False)
+                    self.db.executar(
+                        """UPDATE recorrencias
+                           SET ultimo_gerado_data = ?, geradas = geradas + 1
+                           WHERE id = ?""",
+                        (data.isoformat(), rec.id), commitar=False)
+                    gerados += 1
+                    break  # não projeta uma 2ª ocorrência futura
                 self.db.executar(
                     """INSERT INTO lancamentos
                        (usuario_id, conta_id, categoria_id, tipo, valor, data_mov,
                         descricao, pago, recorrencia_id)
                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)""",
                     (self.usuario_id, rec.conta_id, rec.categoria_id, rec.tipo,
-                     rec.valor, data_mov, f"{rec.descricao} (recorrente)", rec.id),
-                    commitar=False)
+                     rec.valor, data.isoformat(),
+                     f"{rec.descricao} (recorrente)", rec.id), commitar=False)
                 self.db.executar(
-                    "UPDATE recorrencias SET ultimo_gerado = ? WHERE id = ?",
-                    (chave, rec.id), commitar=False)
+                    """UPDATE recorrencias
+                       SET ultimo_gerado_data = ?, geradas = geradas + 1
+                       WHERE id = ?""",
+                    (data.isoformat(), rec.id), commitar=False)
                 gerados += 1
-                ya, ma = avancar_mes(ya, ma)
+                ultima = data
+                data = _avancar_ocorrencia(data, rec.frequencia)
         self.db.confirmar()
         return gerados, puladas
