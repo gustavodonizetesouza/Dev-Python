@@ -1,25 +1,28 @@
 """Páginas do aplicativo: Dashboard, Lançamentos, Contas, Categorias,
-Recorrências, Relatórios e Usuários (painel do admin).
+Recorrências, Cartões, Relatórios e Usuários (painel do admin).
 
-Dashboard separa REALIZADO (pagos) de PREVISÃO (pendentes). Lançamentos
-exibem coluna de status com filtro e alternância de 1 clique. Recorrências
-v2 exibem frequência, próxima ocorrência, término (data, Nx ou sem fim)
-e status "Concluída" quando atinge o limite. Os filtros "Até" cobrem o mês
-inteiro por padrão, mantendo visíveis as pendências futuras (ex.: próxima
-parcela a vencer gerada pela recorrência).
+Dashboard separa REALIZADO (pagos) de PREVISÃO (pendências + faturas de
+cartão em aberto). Lançamentos suportam seleção múltipla com baixa em
+lote. Recorrências v2 com progresso. Cartões: layout de contexto —
+filtros no topo, tabela de cartões como painel de resumo (a soma por
+cartão fica nas colunas 'Em aberto' e 'Disponível') e UM grid detalhado
+com as compras do cartão filtrado. 'Pagar fatura' abre direto quando só
+há 1 fatura em aberto e mostra seletor quando há várias.
 """
 from PyQt6.QtCore import QDate, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (QComboBox, QDateEdit, QFrame, QGridLayout,
-                             QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-                             QMessageBox, QPushButton, QTableWidget,
-                             QTableWidgetItem, QVBoxLayout, QWidget)
+                             QHBoxLayout, QHeaderView, QInputDialog, QLabel,
+                             QLineEdit, QMessageBox, QPushButton,
+                             QTableWidget, QTableWidgetItem, QVBoxLayout,
+                             QWidget)
 
 from core.util import (avancar_mes, dias_no_mes, fmt_data, fmt_mes_curto,
                        fmt_moeda, mes_anterior, nome_mes)
-from dominio.repositorio import ErroRegraNegocio
-from ui.dialogos import (DialogoCategoria, DialogoConta, DialogoLancamento,
-                         DialogoNovaSenha, DialogoNovoUsuario,
+from dominio.repositorio import ErroRegraNegocio, Repositorio
+from ui.dialogos import (DialogoCategoria, DialogoCompra, DialogoConta,
+                         DialogoCartao, DialogoLancamento, DialogoNovaSenha,
+                         DialogoNovoUsuario, DialogoPagarFatura,
                          DialogoRecorrencia)
 from ui.graficos import GraficoBarras, GraficoPizza
 
@@ -52,13 +55,16 @@ class PaginaBase(QWidget):
         pass
 
     # ---------- helpers ----------
-    def _montar_tabela(self, colunas):
+    def _montar_tabela(self, colunas, multi_selecao=False):
         t = QTableWidget()
         t.setColumnCount(len(colunas))
         t.setHorizontalHeaderLabels(colunas)
         t.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         t.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        t.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        if multi_selecao:
+            t.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
+        else:
+            t.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         t.setAlternatingRowColors(True)
         t.verticalHeader().setVisible(False)
         t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -87,13 +93,7 @@ class PaginaBase(QWidget):
 
 
 class PaginaDashboard(PaginaBase):
-    """KPIs separados em REALIZADO (pagos) e PREVISÃO (pendentes).
-
-    Linha 1 — realizado: saldo efetivo, receitas e despesas pagas do mês,
-    resultado do mês. Linha 2 — previsão: saldo previsto (todas as pendências
-    liquidadas), a receber e a pagar no mês, contagem de pendências.
-    Gráficos mostram realizado.
-    """
+    """KPIs separados em REALIZADO (pagos) e PREVISÃO (pendências + faturas)."""
 
     def __init__(self, repo):
         super().__init__(repo)
@@ -155,6 +155,7 @@ class PaginaDashboard(PaginaBase):
         _criar_card("previsto", "Saldo previsto", linha_prev)
         _criar_card("a_receber", "A receber (mês)", linha_prev)
         _criar_card("a_pagar", "A pagar (mês)", linha_prev)
+        _criar_card("faturas", "Faturas a pagar (mês)", linha_prev)
         _criar_card("pendencias", "Pendências (mês)", linha_prev)
         raiz.addLayout(linha_prev)
         self.lb_qtd = QLabel("")
@@ -202,7 +203,6 @@ class PaginaDashboard(PaginaBase):
         k = self.repo.kpis_mes(self.ano, self.mes)
         self.lb_mes.setText(nome_mes(self.ano, self.mes))
 
-        # --- linha 1: realizado ---
         self.cards["saldo"].setText(fmt_moeda(k.saldo_total))
         self.cards["saldo"].setStyleSheet(
             _estilo_valor(VERDE if k.saldo_total >= 0 else VERMELHO))
@@ -215,7 +215,6 @@ class PaginaDashboard(PaginaBase):
         self.cards["resultado"].setStyleSheet(
             _estilo_valor(VERDE if resultado >= 0 else VERMELHO))
 
-        # --- linha 2: previsão ---
         self.cards["previsto"].setText(fmt_moeda(k.saldo_previsto))
         self.cards["previsto"].setStyleSheet(
             _estilo_valor(VERDE if k.saldo_previsto >= 0 else VERMELHO))
@@ -223,6 +222,9 @@ class PaginaDashboard(PaginaBase):
         self.cards["a_receber"].setStyleSheet(_estilo_valor(VERDE))
         self.cards["a_pagar"].setText(fmt_moeda(k.a_pagar_mes))
         self.cards["a_pagar"].setStyleSheet(_estilo_valor(VERMELHO))
+        self.cards["faturas"].setText(fmt_moeda(k.faturas_mes))
+        self.cards["faturas"].setStyleSheet(
+            _estilo_valor(AMBAR if k.faturas_mes else CINZA))
         self.cards["pendencias"].setText(str(k.pendentes_mes))
         self.cards["pendencias"].setStyleSheet(
             _estilo_valor(AMBAR if k.pendentes_mes else CINZA))
@@ -237,13 +239,7 @@ class PaginaDashboard(PaginaBase):
 
 
 class PaginaLancamentos(PaginaBase):
-    """Entradas e saídas com filtros (conta, categoria, tipo, status,
-    período e busca) e alternância pago/pendente em 1 clique.
-
-    O filtro 'Até' cobre o mês inteiro por padrão, para que a próxima
-    parcela a vencer (gerada pela recorrência como pendência futura)
-    permaneça visível na listagem.
-    """
+    """Entradas e saídas com filtros, baixa em lote e alternância de 1 clique."""
 
     def __init__(self, repo):
         super().__init__(repo)
@@ -254,8 +250,9 @@ class PaginaLancamentos(PaginaBase):
         bt_novo = QPushButton("Novo lançamento")
         bt_novo.setProperty("variacao", "primaria")
         bt_editar = QPushButton("Editar")
+        bt_baixar = QPushButton("Baixar selecionados")
+        bt_baixar.setProperty("variacao", "sucesso")
         bt_pago = QPushButton("Marcar pago/pendente")
-        bt_pago.setProperty("variacao", "sucesso")
         bt_excluir = QPushButton("Excluir")
         bt_excluir.setProperty("variacao", "perigo")
         bt_atualizar = QPushButton("Atualizar")
@@ -266,6 +263,7 @@ class PaginaLancamentos(PaginaBase):
         topo.addWidget(t)
         topo.addWidget(bt_novo)
         topo.addWidget(bt_editar)
+        topo.addWidget(bt_baixar)
         topo.addWidget(bt_pago)
         topo.addWidget(bt_excluir)
         topo.addStretch()
@@ -319,11 +317,13 @@ class PaginaLancamentos(PaginaBase):
         raiz.addWidget(card)
 
         self.tabela = self._montar_tabela(
-            ["Data", "Descrição", "Conta", "Categoria", "Tipo", "Valor", "Status"])
+            ["Data", "Descrição", "Conta", "Categoria", "Tipo", "Valor", "Status"],
+            multi_selecao=True)
         raiz.addWidget(self.tabela, 1)
 
         bt_novo.clicked.connect(self._novo)
         bt_editar.clicked.connect(self._editar)
+        bt_baixar.clicked.connect(self._baixar_lote)
         bt_pago.clicked.connect(self._alternar_pago)
         bt_excluir.clicked.connect(self._excluir)
         bt_atualizar.clicked.connect(self.refrescar)
@@ -385,6 +385,11 @@ class PaginaLancamentos(PaginaBase):
                 cor_por_col={4: cor, 5: cor, 6: cor_status},
                 alinhar_direita=(5, 6))
 
+    def _linhas_selecionadas(self):
+        return [self._linhas[i] for i in sorted({idx.row() for idx in
+                                                 self.tabela.selectedIndexes()})
+                if 0 <= i < len(self._linhas)]
+
     def _selecionado(self):
         i = self.tabela.currentRow()
         if i < 0 or i >= len(self._linhas):
@@ -410,8 +415,38 @@ class PaginaLancamentos(PaginaBase):
             self.dados_alterados.emit()
             self.refrescar()
 
+    def _baixar_lote(self):
+        selecionadas = self._linhas_selecionadas()
+        pendentes = [l for l in selecionadas if not l.pago]
+        if not pendentes:
+            QMessageBox.information(
+                self, "Baixa em lote",
+                "Selecione ao menos um lançamento PENDENTE para baixar "
+                "(já pagos são ignorados).")
+            return
+        total = sum(l.valor for l in pendentes if l.tipo == "saida")
+        total += sum(l.valor for l in pendentes if l.tipo == "entrada")
+        if not self._confirmar(
+                "Baixa em lote",
+                f"Marcar como PAGO/RECEBIDO o(s) {len(pendentes)} lançamento(s) "
+                f"selecionado(s)?\n\nValor total envolvido: {fmt_moeda(total)}\n\n"
+                "Se houver parcelas de recorrência, a próxima ocorrência de "
+                "cada uma será gerada automaticamente."):
+            return
+        try:
+            baixados, ignorados = self.repo.baixar_em_lote(
+                [l.id for l in pendentes])
+        except Exception as e:
+            self._exibir_erro(e)
+            return
+        self.dados_alterados.emit()
+        self.refrescar()
+        QMessageBox.information(
+            self, "Baixa em lote",
+            f"{baixados} lançamento(s) baixado(s)."
+            + (f"\n{ignorados} já pago(s) ignorado(s)." if ignorados else ""))
+
     def _alternar_pago(self):
-        """Alterna pago <-> pendente no lançamento selecionado."""
         l = self._selecionado()
         if not l:
             return
@@ -441,8 +476,7 @@ class PaginaLancamentos(PaginaBase):
 
 
 class PaginaContas(PaginaBase):
-    """Cadastro de contas/carteiras. O saldo atual considera apenas
-    lançamentos pagos/recebidos (contas a pagar não movimentam o caixa)."""
+    """Cadastro de contas/carteiras — saldo atual considera apenas pagos."""
 
     def __init__(self, repo):
         super().__init__(repo)
@@ -625,12 +659,7 @@ class PaginaCategorias(PaginaBase):
 
 
 class PaginaRecorrencias(PaginaBase):
-    """Contas fixas v2: frequência (mensal/semanal/trimestral/anual),
-    primeira ocorrência e término por data ou por quantidade (ex.: 280
-    parcelas). O botão 'Gerar pendentes agora' cria as ocorrências vencidas
-    até hoje e, quando houver, a próxima parcela a vencer — que nasce
-    PENDENTE e é efetivada ao marcar como pago. Ao atingir o término,
-    a recorrência fica 'Concluída' e deixa de gerar."""
+    """Contas fixas v2 com progresso e ciclo automático na baixa."""
 
     def __init__(self, repo):
         super().__init__(repo)
@@ -658,7 +687,7 @@ class PaginaRecorrencias(PaginaBase):
 
         self.tabela = self._montar_tabela(
             ["Descrição", "Conta", "Categoria", "Tipo", "Valor", "Frequência",
-             "1ª ocorrência", "Próxima", "Término", "Status"])
+             "1ª ocorrência", "Próxima", "Término", "Progresso", "Status"])
         raiz.addWidget(self.tabela, 1)
 
         bt_novo.clicked.connect(self._novo)
@@ -671,15 +700,24 @@ class PaginaRecorrencias(PaginaBase):
 
     @staticmethod
     def _fmt_termino(r):
-        """Rótulo do término: data, 'Nx' ou 'Sem fim'."""
         if r.data_fim:
             return fmt_data(r.data_fim)
         if r.qtd_vezes is not None:
             return f"{r.qtd_vezes}x"
         return "Sem fim"
 
+    @staticmethod
+    def _fmt_progresso(r, prog):
+        if not prog:
+            return "—"
+        texto = f"{prog['geradas']} geradas · {prog['pagas']} paga(s)"
+        if prog["restantes"] is not None:
+            texto += f" · {prog['restantes']} restantes"
+        return texto
+
     def refrescar(self):
         self._linhas = self.repo.listar_recorrencias()
+        progresso = self.repo.progresso_recorrencias()
         t = self.tabela
         t.setRowCount(0)
         for r in self._linhas:
@@ -689,6 +727,9 @@ class PaginaRecorrencias(PaginaBase):
             else:
                 status = "Ativa" if r.ativo else "Inativa"
                 cor_status = None if r.ativo else CINZA
+            prog = progresso.get(r.id)
+            cor_prog = AMBAR if (prog and prog["restantes"] == 0
+                                 and not r.concluida) else None
             self._adicionar_linha(
                 t,
                 [r.descricao, r.conta_nome, r.categoria_nome,
@@ -699,8 +740,9 @@ class PaginaRecorrencias(PaginaBase):
                  fmt_data(r.proxima_data) if (
                      r.proxima_data and not r.concluida) else "—",
                  self._fmt_termino(r),
+                 self._fmt_progresso(r, prog),
                  status],
-                cor_por_col={4: cor, 9: cor_status},
+                cor_por_col={4: cor, 9: cor_prog, 10: cor_status},
                 alinhar_direita=(4,))
 
     def _selecionado(self):
@@ -754,7 +796,7 @@ class PaginaRecorrencias(PaginaBase):
                "A geração cria as ocorrências já vencidas até hoje e, quando "
                "houver, a PRÓXIMA parcela a vencer. Os lançamentos gerados "
                "nascem como PENDENTES — marque-os como pagos em Lançamentos "
-               "quando efetivar.")
+               "quando efetivar (a baixa também gera a próxima automaticamente).")
         if puladas:
             msg += "\n\nNão puderam ser geradas: " + ", ".join(puladas)
         if gerados:
@@ -763,9 +805,355 @@ class PaginaRecorrencias(PaginaBase):
         QMessageBox.information(self, "Recorrências", msg)
 
 
+class PaginaCartoes(PaginaBase):
+    """Controle do cartão de crédito — layout de contexto em 3 zonas.
+
+    1. Ações (cartões à esquerda; compra/fatura à direita).
+    2. Filtros no topo (cartão, fatura, status).
+    3. Tabela de cartões = painel de resumo: a SOMA por cartão fica nas
+       colunas 'Em aberto' e 'Disponível' (não há grid de faturas — o
+       resumo é o cadastro do cartão). Clicar num cartão sincroniza o
+       filtro e refiltra as compras abaixo (guard anti-loop).
+    4. Grid único de compras do cartão filtrado, com título dinâmico.
+       'Pagar fatura': 1 fatura em aberto abre direto; várias → seletor.
+    """
+
+    def __init__(self, repo):
+        super().__init__(repo)
+        raiz = QVBoxLayout(self)
+        raiz.setContentsMargins(16, 16, 16, 16)
+        raiz.setSpacing(10)
+
+        # ---------- zona 1: ações ----------
+        topo = QHBoxLayout()
+        t = QLabel("Cartões de crédito")
+        t.setObjectName("tituloPagina")
+        topo.addWidget(t)
+        bt_cartao = QPushButton("Novo cartão")
+        bt_cartao.setProperty("variacao", "primaria")
+        bt_editar_cartao = QPushButton("Editar cartão")
+        bt_excluir_cartao = QPushButton("Excluir cartão")
+        bt_excluir_cartao.setProperty("variacao", "perigo")
+        topo.addWidget(bt_cartao)
+        topo.addWidget(bt_editar_cartao)
+        topo.addWidget(bt_excluir_cartao)
+        topo.addStretch()
+        bt_compra = QPushButton("Nova compra")
+        bt_compra.setProperty("variacao", "primaria")
+        bt_excluir_compra = QPushButton("Excluir compra pendente")
+        bt_excluir_compra.setProperty("variacao", "perigo")
+        bt_pagar = QPushButton("Pagar fatura")
+        bt_pagar.setProperty("variacao", "sucesso")
+        topo.addWidget(bt_compra)
+        topo.addWidget(bt_excluir_compra)
+        topo.addWidget(bt_pagar)
+        raiz.addLayout(topo)
+
+        # ---------- zona 2: filtros no topo ----------
+        card_f = QFrame()
+        card_f.setObjectName("card")
+        lf = QHBoxLayout(card_f)
+        lf.setContentsMargins(12, 8, 12, 8)
+        lf.setSpacing(6)
+        lf.addWidget(QLabel("Cartão"))
+        self.cb_cartao_f = QComboBox()
+        lf.addWidget(self.cb_cartao_f)
+        lf.addWidget(QLabel("Fatura"))
+        self.cb_fatura_f = QComboBox()
+        lf.addWidget(self.cb_fatura_f)
+        lf.addWidget(QLabel("Status"))
+        self.cb_status_f = QComboBox()
+        self.cb_status_f.addItem("Todos", None)
+        self.cb_status_f.addItem("Em aberto", 0)
+        self.cb_status_f.addItem("Pagos", 1)
+        lf.addWidget(self.cb_status_f)
+        lf.addStretch()
+        raiz.addWidget(card_f)
+
+        # ---------- zona 3: cartões cadastrados (painel de resumo) ----------
+        self.tabela_cartoes = self._montar_tabela(
+            ["Cartão", "Conta de débito", "Fechamento", "Vencimento",
+             "Limite", "Em aberto", "Disponível", "Status"])
+        raiz.addWidget(self.tabela_cartoes)
+
+        # ---------- zona 4: compras do cartão filtrado (grid único) ----------
+        self.lb_compras = QLabel("Compras")
+        self.lb_compras.setObjectName("tituloCard")
+        raiz.addWidget(self.lb_compras)
+        self.tabela_compras = self._montar_tabela(
+            ["Fatura", "Vencimento", "Descrição", "Cartão", "Categoria",
+             "Parcela", "Valor", "Status"])
+        raiz.addWidget(self.tabela_compras, 1)
+
+        bt_cartao.clicked.connect(self._novo_cartao)
+        bt_editar_cartao.clicked.connect(self._editar_cartao)
+        bt_excluir_cartao.clicked.connect(self._excluir_cartao)
+        bt_compra.clicked.connect(self._nova_compra)
+        bt_excluir_compra.clicked.connect(self._excluir_compra)
+        bt_pagar.clicked.connect(self._pagar_fatura)
+        self.tabela_cartoes.itemSelectionChanged.connect(
+            self._ao_selecionar_cartao)
+        self.cb_cartao_f.currentIndexChanged.connect(self.refrescar)
+        self.cb_fatura_f.currentIndexChanged.connect(self.refrescar)
+        self.cb_status_f.currentIndexChanged.connect(self.refrescar)
+
+        self._cartoes = []
+        self._compras = []
+        self._sincronizando = False   # guard anti-loop (seleção <-> filtro)
+        self.refrescar()
+
+    # ---------- cartões ----------
+    def _cartao_selecionado(self):
+        i = self.tabela_cartoes.currentRow()
+        if 0 <= i < len(self._cartoes):
+            return self._cartoes[i]
+        return None
+
+    def _ao_selecionar_cartao(self):
+        """Clique na tabela de cartões sincroniza o filtro e refiltra tudo."""
+        if self._sincronizando:
+            return
+        c = self._cartao_selecionado()
+        novo_id = c.id if c else None
+        if self.cb_cartao_f.currentData() != novo_id:
+            self.cb_cartao_f.blockSignals(True)
+            self.cb_cartao_f.setCurrentIndex(
+                max(0, self.cb_cartao_f.findData(novo_id)))
+            self.cb_cartao_f.blockSignals(False)
+            self.refrescar()
+
+    def _cartao_filtrado(self):
+        sel_id = self.cb_cartao_f.currentData()
+        if sel_id is not None:
+            for c in self._cartoes:
+                if c.id == sel_id:
+                    return c
+        return None
+
+    def _cartao_para_compra(self):
+        """Cartão para a nova compra: seleção na tabela, senão o do filtro,
+        senão o primeiro ativo."""
+        c = self._cartao_selecionado() or self._cartao_filtrado()
+        if c:
+            return c
+        ativos = [c for c in self._cartoes if c.ativo]
+        return ativos[0] if ativos else None
+
+    def _novo_cartao(self):
+        dlg = DialogoCartao(self.repo, None, self)
+        if dlg.exec():
+            self.repo.salvar_cartao(**dlg.dados())
+            self.dados_alterados.emit()
+            self.refrescar()
+
+    def _editar_cartao(self):
+        c = self._cartao_selecionado()
+        if not c:
+            QMessageBox.information(
+                self, "Atenção", "Selecione um cartão na tabela.")
+            return
+        dlg = DialogoCartao(self.repo, c, self)
+        if dlg.exec():
+            self.repo.salvar_cartao(**dlg.dados(), id=c.id)
+            self.dados_alterados.emit()
+            self.refrescar()
+
+    def _excluir_cartao(self):
+        c = self._cartao_selecionado()
+        if not c:
+            QMessageBox.information(
+                self, "Atenção", "Selecione um cartão na tabela.")
+            return
+        if not self._confirmar(
+                "Excluir cartão",
+                f"Excluir o cartão '{c.nome}'?\n\n"
+                "O histórico pago das faturas permanece nos lançamentos."):
+            return
+        try:
+            self.repo.excluir_cartao(c.id)
+            self.dados_alterados.emit()
+            self.refrescar()
+        except ErroRegraNegocio as e:
+            QMessageBox.warning(self, "Cartão com pendências", str(e))
+        except Exception as e:
+            self._exibir_erro(e)
+
+    # ---------- compras ----------
+    def _nova_compra(self):
+        cartao = self._cartao_para_compra()
+        if not cartao:
+            QMessageBox.information(self, "Atenção",
+                                    "Cadastre um cartão ativo antes de lançar compras.")
+            return
+        dlg = DialogoCompra(self.repo, cartao, self)
+        if dlg.exec():
+            try:
+                n = self.repo.criar_compra(**dlg.dados())
+                self.dados_alterados.emit()
+                self.refrescar()
+                QMessageBox.information(
+                    self, "Compra registrada",
+                    f"{n} parcela(s) gravada(s). Elas aparecem nas faturas "
+                    "como débito previsto — o caixa só se move no pagamento "
+                    "da fatura.")
+            except ErroRegraNegocio as e:
+                QMessageBox.warning(self, "Não foi possível registrar", str(e))
+            except Exception as e:
+                self._exibir_erro(e)
+
+    def _excluir_compra(self):
+        i = self.tabela_compras.currentRow()
+        if i < 0 or i >= len(self._compras):
+            QMessageBox.information(
+                self, "Atenção", "Selecione uma parcela na tabela.")
+            return
+        compra = self._compras[i]
+        if compra.pago:
+            QMessageBox.information(
+                self, "Compra paga",
+                "Esta parcela já foi paga (fatura quitada) — histórico "
+                "imutável. Exclua apenas parcelas em aberto.")
+            return
+        if not self._confirmar(
+                "Excluir compra",
+                f"Excluir TODAS as parcelas em aberto de "
+                f"'{compra.descricao or 'compra sem descrição'}' "
+                f"(a partir da {compra.parcela}/{compra.total_parcelas})?\n\n"
+                "Parcelas já pagas permanecem no histórico."):
+            return
+        try:
+            n = self.repo.excluir_compra(compra.grupo_id)
+            self.dados_alterados.emit()
+            self.refrescar()
+            QMessageBox.information(self, "Compra excluída",
+                                    f"{n} parcela(s) em aberto excluída(s).")
+        except Exception as e:
+            self._exibir_erro(e)
+
+    # ---------- faturas ----------
+    def _pagar_fatura(self):
+        """Pagamento da fatura no escopo do filtro atual.
+
+        1 fatura em aberto → abre o diálogo direto; várias → seletor
+        nativo (a mais antiga vem por padrão).
+        """
+        sel_id = self.cb_cartao_f.currentData()
+        faturas = self.repo.resumo_faturas(cartao_id=sel_id)
+        if not faturas:
+            QMessageBox.information(
+                self, "Pagar fatura",
+                "Nenhuma fatura com saldo em aberto"
+                + (" para o cartão filtrado." if sel_id is not None else "."))
+            return
+        if len(faturas) == 1:
+            fatura_info = faturas[0]
+        else:
+            opcoes = [f"{fmt_mes_curto(f['fatura'])} — {f['cartao_nome']}"
+                      f" · {fmt_moeda(f['total'])}" for f in faturas]
+            escolha, ok = QInputDialog.getItem(
+                self, "Pagar fatura",
+                "Escolha a fatura (mais antigas primeiro):",
+                opcoes, 0, False)
+            if not ok:
+                return
+            fatura_info = faturas[opcoes.index(escolha)]
+        dlg = DialogoPagarFatura(self.repo, fatura_info, self)
+        if dlg.exec():
+            try:
+                lanc_id, total, qtde = self.repo.pagar_fatura(**dlg.dados())
+            except ErroRegraNegocio as e:
+                QMessageBox.warning(self, "Não foi possível pagar", str(e))
+                return
+            except Exception as e:
+                self._exibir_erro(e)
+                return
+            self.dados_alterados.emit()
+            self.refrescar()
+            QMessageBox.information(
+                self, "Fatura paga",
+                f"Lançamento de saída de {fmt_moeda(total)} gerado — "
+                f"{qtde} parcela(s) quitada(s).")
+
+    # ---------- refresh ----------
+    def _recarregar_filtros(self):
+        sel_cartao = self.cb_cartao_f.currentData()
+        sel_fatura = self.cb_fatura_f.currentData()
+        self.cb_cartao_f.blockSignals(True)
+        self.cb_fatura_f.blockSignals(True)
+        self.cb_cartao_f.clear()
+        self.cb_cartao_f.addItem("Todos os cartões", None)
+        for c in self._cartoes:
+            self.cb_cartao_f.addItem(c.nome, c.id)
+        self.cb_cartao_f.setCurrentIndex(
+            max(0, self.cb_cartao_f.findData(sel_cartao)))
+        self.cb_fatura_f.clear()
+        self.cb_fatura_f.addItem("Todas as faturas", None)
+        for f in self.repo.resumo_faturas(cartao_id=sel_cartao):
+            rotulo = f"{fmt_mes_curto(f['fatura'])} — {f['cartao_nome']}"
+            self.cb_fatura_f.addItem(rotulo, f["fatura"])
+        self.cb_fatura_f.setCurrentIndex(
+            max(0, self.cb_fatura_f.findData(sel_fatura)))
+        self.cb_cartao_f.blockSignals(False)
+        self.cb_fatura_f.blockSignals(False)
+
+    def refrescar(self):
+        self._cartoes = self.repo.listar_cartoes()
+        sel_id = self.cb_cartao_f.currentData()
+        cartao_filtrado = self._cartao_filtrado()
+        nome_filtro = cartao_filtrado.nome if cartao_filtrado else "todos os cartões"
+        self._recarregar_filtros()
+
+        self._sincronizando = True
+        try:
+            # --- zona 3: cartões + restaurar seleção do filtro ---
+            t = self.tabela_cartoes
+            t.setRowCount(0)
+            linha_sel = -1
+            for idx, c in enumerate(self._cartoes):
+                cor_disp = VERDE if c.limite_disponivel >= 0 else VERMELHO
+                self._adicionar_linha(
+                    t,
+                    [c.nome, c.conta_nome, f"dia {c.dia_fechamento}",
+                     f"dia {c.dia_vencimento}", fmt_moeda(c.limite_total),
+                     fmt_moeda(c.total_aberto), fmt_moeda(c.limite_disponivel),
+                     "Ativo" if c.ativo else "Inativo"],
+                    cor_por_col={6: cor_disp},
+                    alinhar_direita=(4, 5, 6))
+                if c.id == sel_id:
+                    linha_sel = idx
+            if linha_sel >= 0:
+                t.selectRow(linha_sel)
+
+            # --- zona 4: compras do cartão filtrado (grid único) ---
+            self.lb_compras.setText(f"Compras — {nome_filtro}")
+            self._compras = self.repo.listar_compras(dict(
+                cartao_id=sel_id,
+                fatura=self.cb_fatura_f.currentData(),
+                pago=self.cb_status_f.currentData()))
+            t2 = self.tabela_compras
+            t2.setRowCount(0)
+            for p in self._compras:
+                pago = bool(p.pago)
+                cor_status = VERDE if pago else AMBAR
+                parcela_txt = (f"{p.parcela}/{p.total_parcelas}"
+                               if p.total_parcelas > 1 else "—")
+                self._adicionar_linha(
+                    t2,
+                    [fmt_mes_curto(p.fatura),
+                     fmt_data(Repositorio.vencimento_de_fatura(
+                         p.fatura, next((c.dia_vencimento for c in self._cartoes
+                                         if c.id == p.cartao_id), 10))),
+                     p.descricao or "—", p.cartao_nome, p.categoria_nome,
+                     parcela_txt, fmt_moeda(p.valor),
+                     "Paga" if pago else "Em aberto"],
+                    cor_por_col={6: VERMELHO, 7: cor_status},
+                    alinhar_direita=(6,))
+        finally:
+            self._sincronizando = False
+
+
 class PaginaRelatorios(PaginaBase):
-    """Relatórios por período: resumo mensal e consolidação por categoria,
-    com filtro de status (todos / pagos / pendentes)."""
+    """Relatórios por período: resumo mensal e consolidação por categoria."""
 
     def __init__(self, repo):
         super().__init__(repo)
@@ -898,7 +1286,6 @@ class PaginaRelatorios(PaginaBase):
         resumo = self.repo.resumo_mensal(filtros)
         lancs = self.repo.listar_lancamentos(filtros)
 
-        # --- resumo mensal ---
         t = self.tabela_mensal
         t.setRowCount(0)
         tot_ent = tot_sai = 0.0
@@ -916,7 +1303,6 @@ class PaginaRelatorios(PaginaBase):
                                   fmt_moeda(tot_sai),
                                   fmt_moeda(tot_ent - tot_sai)])
 
-        # --- consolidação por categoria ---
         agg = {}
         for l in lancs:
             ent, sai = agg.get(l.categoria_nome, (0.0, 0.0))
@@ -945,12 +1331,7 @@ class PaginaRelatorios(PaginaBase):
 
 
 class PaginaUsuarios(PaginaBase):
-    """Painel administrativo de cadastros — visível apenas para admins.
-
-    O admin gerencia contas de acesso (ativar/desativar, papel, senha,
-    exclusão), mas NÃO acessa dados financeiros de nenhum usuário:
-    o repositório financeiro é sempre user-scoped, inclusive para admins.
-    """
+    """Painel administrativo de cadastros — visível apenas para admins."""
 
     def __init__(self, repo_usuarios, sessao):
         super().__init__(repo_usuarios)
@@ -1129,7 +1510,8 @@ class PaginaUsuarios(PaginaBase):
                 "Excluir usuário",
                 f"Excluir PERMANENTEMENTE o usuário '{u.nome}' ({u.email})?\n\n"
                 "Serão excluídos também TODOS os dados dele: lançamentos, "
-                "recorrências, contas e categorias. Essa ação não pode ser desfeita."):
+                "recorrências, contas, cartões e categorias. Essa ação não "
+                "pode ser desfeita."):
             return
         try:
             self.repo_usuarios.excluir_usuario(u.id, self.sessao.usuario_id)

@@ -1,0 +1,152 @@
+Prioridades: P1 = bloqueia uso/integridade · P2 = funcional importante · P3 = refinamento.
+
+
+Módulo 0 — Infraestrutura, caminhos e schema
+CT001 (P1) — Rodar a partir de C:\Dev\Dev-Python → data/gestor_financeiro.db nasce dentro de 8_GestorFinanceiroEssencial\, sem pasta data/ órfã
+CT002 (P2) — Alternar tema → tema muda no config.json da pasta do projeto
+CT003 (P2) — sqlite.arquivo com caminho absoluto no config → banco criado nesse local
+CT004 (P2) — Renomear config.json → app sobe com defaults (SQLite, tema escuro) sem crash
+CT005 (P1) — Banco zerado → primeira execução cria 7 tabelas (usuarios, contas, categorias, recorrencias, lancamentos, cartoes_credito, compras_cartao) + índices
+CT006 (P1) — Regressão de schema: dados criados na versão anterior continuam funcionando após atualizar o código, sem recriar o banco (caso real do dia_do_mes)
+Módulo 1 — Autenticação
+CT007 (P1) — Primeiro cadastro vira admin: nota de "administrador" aparece → entra como Administrador com botão Usuários
+CT008 (P1) — 2º cadastro self-service: sem nota de admin, papel Usuário
+CT009 (P1) — E-mail duplicado bloqueado com aviso
+CT010 (P2) — E-mail case-insensitive: cadastrar Gustavo@Email.COM, logar com gustavo@email.com
+CT011 (P1) — Senha errada → "E-mail ou senha inválidos" (mensagem genérica)
+CT012 (P1) — E-mail inexistente → mesma mensagem genérica do CT011
+CT013 (P1) — Conta desativada → "Esta conta está desativada"
+CT014 (P2) — Senha < 6 caracteres bloqueada no cadastro e no reset
+CT015 (P2) — Campos vazios no login/cadastro → aviso inline sem crash
+CT016 (P2) — "Sair da conta" volta ao login com o app aberto; fechar o login encerra o app
+Módulo 2 — Isolamento multiusuário
+CT017 (P1) — Usuário novo: Dashboard R$ 0,00, sem lançamentos
+CT018 (P1) — Usuário novo: 11 categorias padrão semeadas
+CT019 (P1) — Lançamento do usuário A invisível para B (lista, dashboard, relatórios)
+CT020 (P1) — Contas isoladas: "Banco Principal" do A não aparece nos combos de B
+CT021 (P1) — Cartões isolados: cartão do A não aparece em Cartões nem nos diálogos de B (novo no módulo)
+CT022 (P1) — Admin não vê dados financeiros de ninguém: vê só os próprios
+CT023 (P1) — A e B podem ter conta/cartão com o MESMO nome sem conflito de UNIQUE
+Módulo 3 — Painel Usuários (admin)
+CT024 (P1) — Botão "Usuários" só existe para admin
+CT025 (P2) — Listagem: ID, nome, e-mail, papel, plano, lançamentos, status, criado em
+CT026 (P1) — Criar usuário pelo painel: nasce Usuário + categorias semeadas
+CT027 (P2) — Promover/Rebaixar com confirmação; papel atualiza
+CT028 (P1) — Resetar senha: nova funciona, antiga falha
+CT029 (P1) — Ativar/Desativar: diálogo abre corretamente (regressão do bug do f-string) e bloqueia login de desativado
+CT030 (P1) — Excluir usuário com cascata: lançamentos, recorrências, contas, categorias e cartões/compras de cartão somem do banco
+CT031 (P1) — Admin não desativa a própria conta → bloqueado
+CT032 (P1) — Admin não remove o próprio papel → bloqueado
+CT033 (P1) — Único admin não é rebaixado nem excluído → bloqueado
+CT034 (P1) — Com 2 admins, rebaixar um funciona
+Módulo 4 — Contas
+CT035 (P2) — CRUD completo: criar, editar, excluir
+CT036 (P1) — Saldo atual = inicial + pagos − recebidos (pendências não movimentam)
+CT037 (P1) — Saldo negativo em vermelho
+CT038 (P1) — Excluir conta em cascata: lançamentos e recorrências removidos
+CT039 (P1) — Excluir conta usada por cartão → bloqueado com contagem ("redefina a conta de débito do cartão")
+CT040 (P2) — Conta inativa: não aparece nos combos de lançamento/recorrência/cartão, histórico permanece
+Módulo 5 — Categorias
+CT041 (P2) — CRUD com cor (picker aplica no botão e na tabela)
+CT042 (P1) — Excluir categoria em uso → bloqueado com contagem de lançamentos e compras de cartão
+CT043 (P2) — Desativar: some dos combos, histórico permanece
+CT044 (P2) — Tipo filtra combos: categoria "entrada" não aparece em saída
+Módulo 6 — Lançamentos (CRUD, status, baixa)
+CT045 (P2) — CRUD completo com duplo-clique para editar
+CT046 (P1) — Categoria recarrega ao trocar Tipo; valor > 0 obrigatório
+CT047 (P2) — Filtros combinados (conta, categoria, tipo, status, período, busca) re-aplicam
+CT048 (P1) — Sem conta cadastrada → "Cadastre uma conta antes de lançar"
+CT049 (P3) — Cores por tipo (verde/vermelho) e valores alinhados à direita
+CT050 (P1) — Novo lançamento com checkbox desmarcado → Pendente, não mexe no Saldo total
+CT051 (P1) — Com checkbox marcado → Pago, movimenta Saldo total
+CT052 (P1) — Filtro de status Todos/Pagos/Pendentes na listagem
+CT053 (P1) — Toggle "Marcar pago/pendente" recalcula saldo na hora
+CT054 (P1) — Baixa em lote: Ctrl+clique em 2 pendentes → confirmação mostra valor total → ambas Pagas
+CT055 (P2) — Lote misto: pagos ignorados e contados na mensagem; lote sem pendentes → aviso orientativo
+CT056 (P1) — Lançamento de recorrência: baixa gera a próxima automaticamente; reverter baixa não gera nada
+CT057 (P1) — Invariante: Saldo previsto = Saldo total + pendentes a receber − pendentes a pagar (com pendências em meses diferentes)
+CT058 (P2) — Excluir lançamento de recorrência avisa que não afeta próximas gerações
+Módulo 7 — Dashboard
+CT059 (P1) — Saldo total correto (conferir na calculadora)
+CT060 (P2) — Resultado do mês = receitas − despesas, verde/vermelho
+CT061 (P1) — Saldo previsto absorve faturas em aberto: previsto = caixa + tudo pago/pendente − tudo − faturas abertas (invariante novo do cartão)
+CT062 (P2) — A pagar/A receber (mês) = pendências do mês exibido; navegar ◀ ▶ muda os valores
+CT063 (P1) — Card "Faturas a pagar (mês)" = soma das faturas com vencimento no mês exibido (âmbar)
+CT064 (P2) — Pizza (por categoria, cor respeitada) e barras (6 meses) mostram realizado
+CT065 (P2) — Mês vazio → "Sem dados", cards zerados sem crash
+CT066 (P3) — Contador "N lançamento(s) em [mês] · M pendência(s)" bate com a tabela
+CT067 (P1) — Compra no cartão NÃO mexe no Saldo total, só no previsto e no card de faturas
+Módulo 8 — Recorrências v2
+CT068 (P1) — Migração de legadas: data_inicio preenchida, geradas retroativo, geração continua sem duplicar
+CT069 (P1) — Mensal "Sem fim": gera vencidas + 1 próxima; colunas completas na tabela
+CT070 (P1) — 🏠 295 parcelas (casa): término "Por quantidade" → gera até hoje + projeção; Término mostra "295x"
+CT071 (P1) — Idempotência: "Gerar" 2x não duplica; contador nunca passa do limite
+CT072 (P1) — Término por data: gera até data_fim; próxima que passaria → "Concluída", Próxima "—"
+CT073 (P1) — Semanal: cada ocorrência avança exatamente 7 dias
+CT074 (P1) — Trimestral: +3, +6, +9 meses, mesmo dia
+CT075 (P2) — Anual: +12 meses, mesmo dia
+CT076 (P1) — Mês curto: dia 31 em fev lança dia 28/29
+CT077 (P2) — Edição afeta só o futuro: valor novo vale da próxima geração
+CT078 (P2) — Diálogo: término por data anterior à 1ª ocorrência bloqueado; campos condicionais habilitam/desabilitam
+CT079 (P2) — Edição carrega modo de término atual (ex.: 295x → radio marcado)
+CT080 (P1) — Recorrência inativa não gera nada
+CT081 (P1) — Isolamento: recorrência do A nunca gera para B
+CT082 (P1) — Projeção única: nunca há 2 pendências futuras da mesma recorrência
+CT083 (P2) — Baixa atrasada: paga parcela antiga → nascem vencidas intermediárias + projeção (backlog se recupera)
+CT084 (P1) — Coluna Progresso: "2 geradas · 1 paga(s) · 293 restantes"; "Sem fim" mostra sem "restantes"
+CT085 (P1) — Baixa da última das 295 → "Concluída", nada mais gera
+CT086 (P2) — Baixa via checkbox no diálogo equivale ao toggle
+CT087 (P1) — Lote com 2 parcelas da MESMA recorrência → próxima gerada apenas 1 vez
+CT088 (P3) — Progresso âmbar quando restantes = 0 e não concluída
+Módulo 9 — Cartão de crédito (novo módulo)
+Cadastro:
+
+CT089 (P1) — Criar cartão (nome, conta, fech 20, venc 10, limite 5.000) → tabela mostra Disponível 5.000,00
+CT090 (P2) — Editar cartão: valores recarregados e persistem
+CT091 (P1) — Excluir cartão sem pendências → OK, histórico pago permanece nos lançamentos
+CT092 (P1) — Excluir cartão com parcela em aberto → bloqueado com contagem
+Compras:
+
+CT093 (P1) — Compra dia 15/10 (antes do fech 20) → fatura NOV/26, vence 10/11; preview mostra "Vence em…"
+CT094 (P1) — Compra dia 25/10 (depois do fech) → fatura DEZ/26 (pula)
+CT095 (P1) — Compra no próprio dia do fechamento (20/10) → fatura corrente (regra ≤)
+CT096 (P1) — Parcelada 10× de 1.500 → 10 linhas "k/10" de 150,00; faturas NOV/26 a AGO/27 (1/mês)
+CT097 (P2) — Divisão com centavos: 100,00 em 3× → 33,34 + 33,33 + 33,33 (diferença na 1ª, total fecha)
+CT098 (P1) — Escolher fatura manualmente no combo → 1ª parcela cai na escolhida; seguintes avançam 1/mês
+CT099 (P1) — Compra não toca caixa: Saldo total imutável; Saldo previsto cai; Limite disponível cai
+CT100 (P2) — Filtros de parcelas por cartão/fatura/status funcionam combinados
+CT101 (P1) — Excluir compra pendente: remove TODAS as parcelas em aberto do grupo; pagas permanecem
+CT102 (P1) — Excluir parcela paga → bloqueado ("histórico imutável")
+Faturas:
+
+CT103 (P1) — Resumo de faturas: agrupado por cartão+fatura, com total, qtde e vencimento, mais antigas primeiro
+CT104 (P1) — Pagar fatura: gera 1 lançamento de saída pago na conta vinculada (pré-selecionada), parcelas viram "Paga" com link
+CT105 (P1) — Pós-pagamento: Saldo total cai, previsto não muda, limite volta, lançamento aparece em Lançamentos e Relatórios como despesa única
+CT106 (P2) — Pagar fatura sem pendentes → bloqueado; conta inativa no diálogo → tratado
+CT107 (P1) — 2 cartões: faturas agrupadas separadamente; card "Faturas a pagar (mês)" soma ambos; dia 29–31 de fech/venc ajusta em mês curto
+Módulo 10 — Relatórios
+CT108 (P2) — Período padrão 12 meses; filtros de conta/categoria/tipo/status
+CT109 (P1) — Resumo mensal soma corretamente; linha Total em negrito confere
+CT110 (P2) — Consolidação por categoria com resultado verde/vermelho, ordenada por volume
+CT111 (P2) — Filtro "Pendentes" mostra só o previsto; "Pagos" só o realizado
+CT112 (P1) — Fatura paga do cartão aparece como 1 lançamento (não 10 compras) nos relatórios
+Módulo 11 — Tema e UI
+CT113 (P2) — Alternar tema reflete na hora e persiste após reiniciar
+CT114 (P3) — Contraste dos temas em tabelas, combos, diálogos e QMessageBox
+CT115 (P3) — Cartão do usuário na lateral mostra nome, e-mail e papel a cada login
+Módulo 12 — Segurança e integridade
+CT116 (P1) — senha_hash começa com pbkdf2_sha256$120000$ — nunca texto puro
+CT117 (P1) — Interromper app no meio de cascata → banco consistente, sem órfãos
+CT118 (P2) — Acentos (ç/ã) gravam e exibem corretos em todos os cadastros
+CT119 (P2) — Valores com centavos (99,97) exibem e somam corretos
+CT120 (P3) — Datas futuras/anteriores aparecem nos relatórios do período certo
+CT121 (P2) — DB Browser: parcelas de cartão com lancamento_id preenchido após pagar fatura (rastreabilidade)
+Módulo 13 — Migração SQL Server (regressão fase 2)
+CT122 (P1) — Schema no SQL Server: 7 tabelas criadas no dialeto correto
+CT123 (P1) — Cadastro/login completos; e-mail UNIQUE respeitado
+CT124 (P1) — SCOPE_IDENTITY: criar lançamento → id correto (sem None)
+CT125 (P2) — FORMAT(data_mov,'yyyy-MM') no resumo mensal; DECIMAL(14,2) com 2 casas
+CT126 (P2) — Recorrências geram igual no SQL Server
+CT127 (P1) — Cartões: compra, parcelamento e pagar_fatura funcionam no SQL Server
+CT128 (P1) — Cascata de exclusão (usuário/conta) no SQL Server
+CT129 (P1) — Voltar para "banco": "sqlite" → app funciona com dados SQLite intactos

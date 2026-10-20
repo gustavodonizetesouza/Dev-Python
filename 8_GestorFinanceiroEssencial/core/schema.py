@@ -2,25 +2,18 @@
 (SQLite e SQL Server).
 
 Estrutura multiusuário: tabela usuarios + coluna usuario_id em TODAS as
-entidades. O isolamento por usuário acontece nas consultas do repositório
-(multi-tenancy lógico). A semeadura das 11 categorias padrão é POR USUÁRIO,
-no momento do cadastro.
+entidades. O isolamento por usuário acontece nas consultas do repositório.
+A semeadura das 11 categorias padrão é POR USUÁRIO, no cadastro.
 
-Recorrências v2: frequência (mensal/semanal/trimestral/anual), primeira
-ocorrência (data_inicio), término opcional por data (data_fim) ou por
-quantidade (qtd_vezes) e contadores (geradas, ultimo_gerado_data).
-As colunas antigas mes_inicio, dia_do_mes e ultimo_gerado permanecem no
-banco apenas para compatibilidade com bancos já existentes (deprecadas —
-novos INSERTs não as utilizam) e são convertidas pela migração de dados.
+Cartão de crédito: cartoes_credito (cadastro com conta de débito, dia de
+fechamento, dia de vencimento e limite) e compras_cartao (1 linha por
+PARCELA, agrupadas por grupo_id; a coluna fatura 'YYYY-MM' é nomeada pelo
+mês de VENCIMENTO). A fatura paga gera 1 lançamento de saída na conta
+vinculada — as compras em aberto são débito previsto, não caixa.
 
-Migrações idempotentes em duas camadas:
-- ALTER TABLE para colunas novas (só aplica se a coluna não existir).
-- Conversão de dados em Python para o modelo novo de recorrências
-  (mes_inicio + dia_do_mes -> data_inicio; ultimo_gerado -> ultimo_gerado_data;
-  geradas calculado retroativamente).
+Migrações idempotentes: ALTER TABLE de colunas novas e conversão de dados
+das recorrências legadas (mes_inicio + dia_do_mes -> data_inicio etc.).
 """
-from calendar import monthrange
-
 from core.conexao import DIALETO_SQLITE, DIALETO_SQLSERVER
 from core.util import dias_no_mes
 
@@ -111,8 +104,6 @@ DDL = [
                 )""",
     },
     # ---------- recorrencias (v2: frequência + término por data/quantidade) ----------
-    # Colunas legadas (mes_inicio, dia_do_mes, ultimo_gerado) mantidas com
-    # defaults para não quebrar bancos antigos; novos INSERTs não as utilizam.
     {
         DIALETO_SQLITE: """
             CREATE TABLE IF NOT EXISTS recorrencias (
@@ -209,6 +200,84 @@ DDL = [
                     FOREIGN KEY (recorrencia_id) REFERENCES recorrencias(id)
                 )""",
     },
+    # ---------- cartoes_credito (cadastro do cartão) ----------
+    {
+        DIALETO_SQLITE: """
+            CREATE TABLE IF NOT EXISTS cartoes_credito (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                usuario_id      INTEGER NOT NULL,
+                nome            TEXT NOT NULL,
+                conta_id        INTEGER NOT NULL,
+                dia_fechamento  INTEGER NOT NULL CHECK (dia_fechamento BETWEEN 1 AND 31),
+                dia_vencimento  INTEGER NOT NULL CHECK (dia_vencimento BETWEEN 1 AND 31),
+                limite_total    REAL NOT NULL DEFAULT 0,
+                ativo           INTEGER NOT NULL DEFAULT 1,
+                criado_em       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (usuario_id, nome),
+                FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+                FOREIGN KEY (conta_id) REFERENCES contas(id)
+            )""",
+        DIALETO_SQLSERVER: """
+            IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'cartoes_credito')
+                CREATE TABLE cartoes_credito (
+                    id              INT IDENTITY(1,1) PRIMARY KEY,
+                    usuario_id      INT NOT NULL,
+                    nome            NVARCHAR(120) NOT NULL,
+                    conta_id        INT NOT NULL,
+                    dia_fechamento  INT NOT NULL CHECK (dia_fechamento BETWEEN 1 AND 31),
+                    dia_vencimento  INT NOT NULL CHECK (dia_vencimento BETWEEN 1 AND 31),
+                    limite_total    DECIMAL(14,2) NOT NULL DEFAULT 0,
+                    ativo           BIT NOT NULL DEFAULT 1,
+                    criado_em       DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+                    UNIQUE (usuario_id, nome),
+                    FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+                    FOREIGN KEY (conta_id) REFERENCES contas(id)
+                )""",
+    },
+    # ---------- compras_cartao (1 linha por PARCELA; fatura 'YYYY-MM' = mês de venc.) ----------
+    {
+        DIALETO_SQLITE: """
+            CREATE TABLE IF NOT EXISTS compras_cartao (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                usuario_id     INTEGER NOT NULL,
+                cartao_id      INTEGER NOT NULL,
+                categoria_id   INTEGER NOT NULL,
+                grupo_id       INTEGER NOT NULL,
+                descricao      TEXT NOT NULL DEFAULT '',
+                data_compra    TEXT NOT NULL,
+                valor          REAL NOT NULL CHECK (valor > 0),
+                parcela        INTEGER NOT NULL DEFAULT 1,
+                total_parcelas INTEGER NOT NULL DEFAULT 1,
+                fatura         TEXT NOT NULL,
+                pago           INTEGER NOT NULL DEFAULT 0,
+                lancamento_id  INTEGER,
+                criado_em      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+                FOREIGN KEY (cartao_id) REFERENCES cartoes_credito(id),
+                FOREIGN KEY (categoria_id) REFERENCES categorias(id)
+            )""",
+        DIALETO_SQLSERVER: """
+            IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'compras_cartao')
+                CREATE TABLE compras_cartao (
+                    id             INT IDENTITY(1,1) PRIMARY KEY,
+                    usuario_id     INT NOT NULL,
+                    cartao_id      INT NOT NULL,
+                    categoria_id   INT NOT NULL,
+                    grupo_id       INT NOT NULL,
+                    descricao      NVARCHAR(200) NOT NULL DEFAULT '',
+                    data_compra    DATE NOT NULL,
+                    valor          DECIMAL(14,2) NOT NULL CHECK (valor > 0),
+                    parcela        INT NOT NULL DEFAULT 1,
+                    total_parcelas INT NOT NULL DEFAULT 1,
+                    fatura         CHAR(7) NOT NULL,
+                    pago           BIT NOT NULL DEFAULT 0,
+                    lancamento_id  INT NULL,
+                    criado_em      DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+                    FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+                    FOREIGN KEY (cartao_id) REFERENCES cartoes_credito(id),
+                    FOREIGN KEY (categoria_id) REFERENCES categorias(id)
+                )""",
+    },
 ]
 
 INDICES = [
@@ -237,7 +306,19 @@ INDICES = [
                             "AND object_id = OBJECT_ID('dbo.lancamentos')) "
                             "CREATE INDEX ix_lanc_usu ON lancamentos (usuario_id)"),
     },
-    # ----- índices operacionais dos lançamentos -----
+    {
+        DIALETO_SQLITE: "CREATE INDEX IF NOT EXISTS ix_cartao_usu ON cartoes_credito (usuario_id)",
+        DIALETO_SQLSERVER: ("IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_cartao_usu' "
+                            "AND object_id = OBJECT_ID('dbo.cartoes_credito')) "
+                            "CREATE INDEX ix_cartao_usu ON cartoes_credito (usuario_id)"),
+    },
+    {
+        DIALETO_SQLITE: "CREATE INDEX IF NOT EXISTS ix_cc_usu ON compras_cartao (usuario_id)",
+        DIALETO_SQLSERVER: ("IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_cc_usu' "
+                            "AND object_id = OBJECT_ID('dbo.compras_cartao')) "
+                            "CREATE INDEX ix_cc_usu ON compras_cartao (usuario_id)"),
+    },
+    # ----- índices operacionais -----
     {
         DIALETO_SQLITE: "CREATE INDEX IF NOT EXISTS ix_lanc_data ON lancamentos (data_mov)",
         DIALETO_SQLSERVER: ("IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_lanc_data' "
@@ -262,11 +343,27 @@ INDICES = [
                             "AND object_id = OBJECT_ID('dbo.lancamentos')) "
                             "CREATE INDEX ix_lanc_rec ON lancamentos (recorrencia_id)"),
     },
+    {
+        DIALETO_SQLITE: "CREATE INDEX IF NOT EXISTS ix_cc_cartao ON compras_cartao (cartao_id)",
+        DIALETO_SQLSERVER: ("IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_cc_cartao' "
+                            "AND object_id = OBJECT_ID('dbo.compras_cartao')) "
+                            "CREATE INDEX ix_cc_cartao ON compras_cartao (cartao_id)"),
+    },
+    {
+        DIALETO_SQLITE: "CREATE INDEX IF NOT EXISTS ix_cc_fatura ON compras_cartao (fatura)",
+        DIALETO_SQLSERVER: ("IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_cc_fatura' "
+                            "AND object_id = OBJECT_ID('dbo.compras_cartao')) "
+                            "CREATE INDEX ix_cc_fatura ON compras_cartao (fatura)"),
+    },
+    {
+        DIALETO_SQLITE: "CREATE INDEX IF NOT EXISTS ix_cc_grupo ON compras_cartao (grupo_id)",
+        DIALETO_SQLSERVER: ("IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_cc_grupo' "
+                            "AND object_id = OBJECT_ID('dbo.compras_cartao')) "
+                            "CREATE INDEX ix_cc_grupo ON compras_cartao (grupo_id)"),
+    },
 ]
 
 # ----- ALTERs das colunas novas de recorrências (idempotentes) -----
-# Em SQLite, ADD COLUMN aceita NOT NULL apenas com DEFAULT — os legados
-# recebem defaults permissivos; o SQL Server segue o mesmo desenho.
 ALTER_RECORRENCIAS = [
     ("frequencia", {
         DIALETO_SQLITE: "ALTER TABLE recorrencias ADD COLUMN frequencia TEXT NOT NULL DEFAULT 'mensal'",
@@ -329,17 +426,8 @@ def _coluna_existe(db, tabela: str, coluna: str) -> bool:
 
 def _migrar_dados_recorrencias(db):
     """Converte recorrências do modelo antigo (mes_inicio + dia_do_mes,
-    sempre mensal) para o modelo v2.
-
-    - data_inicio: primeiro dia de mes_inicio com dia_do_mes ajustado ao
-      tamanho real do mês (dia 31 em fev vira o último dia de fev).
-    - ultimo_gerado_data: mesma regra aplicada ao último mês gerado.
-    - geradas: nº de ocorrências mensais entre data_inicio e o último mês
-      gerado (contagem retroativa — a geração continua de onde parou).
-
-    Só roda se existir a coluna legada mes_inicio e houver linhas com
-    data_inicio NULL (bancos novos nunca entram aqui).
-    """
+    sempre mensal) para o modelo v2. Só roda se houver linhas com
+    data_inicio NULL (bancos novos nunca entram aqui)."""
     if not _coluna_existe(db, "recorrencias", "mes_inicio"):
         return
     linhas = db.consultar(
@@ -348,7 +436,7 @@ def _migrar_dados_recorrencias(db):
     for l in linhas:
         mes_inicio = str(l["mes_inicio"] or "").strip()
         if len(mes_inicio) < 7:
-            continue  # sem origem válida: fica para o usuário corrigir na UI
+            continue
         try:
             ano_i, mes_i = int(mes_inicio[:4]), int(mes_inicio[5:7])
             dia = int(l["dia_do_mes"] or 1)

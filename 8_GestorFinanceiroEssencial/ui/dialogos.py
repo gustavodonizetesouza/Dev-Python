@@ -1,18 +1,22 @@
-"""Diálogos de cadastro: contas, categorias, lançamentos, recorrências e usuários.
+"""Diálogos de cadastro: contas, categorias, lançamentos, recorrências,
+cartão de crédito e usuários.
 
-DialogoRecorrencia (v2): frequência mensal/semanal/trimestral/anual,
-primeira ocorrência (data completa) e término opcional por data ou por
-quantidade de vezes (ex.: 280 parcelas de um financiamento).
+DialogoRecorrencia (v2): frequência, primeira ocorrência e término por
+data ou quantidade. DialogoCartao/DialogoCompra/DialogoPagarFatura: o
+ciclo do cartão — o diálogo de compra mostra a FATURA CALCULADA pela regra
+do fechamento (editável para casos excepcionais) e a progressão das
+parcelas; o pagamento da fatura gera UM lançamento de saída na conta.
 """
 from PyQt6.QtCore import QDate, Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDateEdit,
                              QDialog, QDialogButtonBox, QDoubleSpinBox,
                              QFormLayout, QHBoxLayout, QLabel, QLineEdit,
-                             QPushButton, QRadioButton, QSpinBox, QVBoxLayout,
-                             QWidget)
+                             QPushButton, QRadioButton, QSpinBox,
+                             QVBoxLayout, QWidget)
 
 from core.seguranca import validar_senha_forte
+from core.util import fmt_data, fmt_mes_curto, fmt_moeda
 from dominio.repositorio import Repositorio
 
 TIPOS_CONTA = ["Corrente", "Poupança", "Cartão", "Dinheiro", "Investimento"]
@@ -39,10 +43,8 @@ class DialogoBase(QDialog):
         raiz.addWidget(self.aviso)
         self.botoes = QDialogButtonBox(QDialogButtonBox.StandardButton.Save |
                                        QDialogButtonBox.StandardButton.Cancel)
-        self.botoes.button(
-            QDialogButtonBox.StandardButton.Save).setText("Salvar")
-        self.botoes.button(
-            QDialogButtonBox.StandardButton.Cancel).setText("Cancelar")
+        self.botoes.button(QDialogButtonBox.StandardButton.Save).setText("Salvar")
+        self.botoes.button(QDialogButtonBox.StandardButton.Cancel).setText("Cancelar")
         self.botoes.accepted.connect(self._tentar_aceitar)
         self.botoes.rejected.connect(self.reject)
         raiz.addWidget(self.botoes)
@@ -134,8 +136,7 @@ class DialogoCategoria(DialogoBase):
 
         if categoria:
             self.ed_nome.setText(categoria.nome)
-            self.cb_tipo.setCurrentIndex(
-                1 if categoria.tipo == "entrada" else 0)
+            self.cb_tipo.setCurrentIndex(1 if categoria.tipo == "entrada" else 0)
             self.cor = categoria.cor or self.cor
             self.ck_ativo.setChecked(bool(categoria.ativo))
         self._pintar_botao_cor()
@@ -162,13 +163,7 @@ class DialogoCategoria(DialogoBase):
 
 
 class DialogoLancamento(DialogoBase):
-    """Lançamento com controle de contas a pagar/receber.
-
-    O checkbox 'Já pago / Já recebido' vem MARCADO por padrão (entrada
-    rápida mantém o comportamento anterior); desmarque para registrar
-    uma pendência. O texto do checkbox se adapta ao tipo: saída = pago,
-    entrada = recebido.
-    """
+    """Lançamento com controle de contas a pagar/receber."""
 
     def __init__(self, repo: Repositorio, lancamento=None, parent=None):
         super().__init__("Editar lançamento" if lancamento else "Novo lançamento", parent)
@@ -200,15 +195,12 @@ class DialogoLancamento(DialogoBase):
         self.form.addRow("", self.ck_pago)
 
         self.cb_tipo.currentIndexChanged.connect(self._atualizar_texto_pago)
-        self.cb_tipo.currentIndexChanged.connect(
-            lambda _: self._recarregar_categorias())
+        self.cb_tipo.currentIndexChanged.connect(lambda _: self._recarregar_categorias())
 
         if lancamento:
-            self.cb_tipo.setCurrentIndex(
-                self.cb_tipo.findData(lancamento.tipo))
+            self.cb_tipo.setCurrentIndex(self.cb_tipo.findData(lancamento.tipo))
             self._recarregar_categorias(lancamento.categoria_id)
-            self.cb_conta.setCurrentIndex(
-                self.cb_conta.findData(lancamento.conta_id))
+            self.cb_conta.setCurrentIndex(self.cb_conta.findData(lancamento.conta_id))
             self.cb_valor.setValue(lancamento.valor)
             a, m, d = (int(x) for x in lancamento.data_mov.split("-"))
             self.ed_data.setDate(QDate(a, m, d))
@@ -219,7 +211,6 @@ class DialogoLancamento(DialogoBase):
         self._atualizar_texto_pago()
 
     def _atualizar_texto_pago(self):
-        """Adapta o texto do checkbox ao tipo (saída = pago, entrada = recebido)."""
         if self.cb_tipo.currentData() == "entrada":
             self.ck_pago.setText("Já recebido")
         else:
@@ -256,12 +247,7 @@ class DialogoLancamento(DialogoBase):
 
 
 class _LinhaTérmino(QWidget):
-    """Linha do formulário com os 3 modos de término e seus campos.
-
-    - 'Sem fim': gera para sempre (comportamento clássico).
-    - 'Até a data': gera enquanto a ocorrência <= data de término.
-    - 'Por quantidade': gera até atingir N ocorrências (ex.: 280 parcelas).
-    """
+    """Linha do formulário com os 3 modos de término das recorrências."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -300,14 +286,7 @@ class _LinhaTérmino(QWidget):
 
 
 class DialogoRecorrencia(DialogoBase):
-    """Recorrência v2: frequência + primeira ocorrência + término opcional.
-
-    A frequência define o passo entre ocorrências (mensal = 1 mês,
-    semanal = 7 dias, trimestral = 3 meses, anual = 12 meses). O dia do mês
-    e o dia da semana derivam da primeira ocorrência. O término pode ser
-    por data ou por quantidade de vezes (ex.: 280 parcelas); sem término,
-    gera para sempre.
-    """
+    """Recorrência v2: frequência + primeira ocorrência + término opcional."""
 
     def __init__(self, repo: Repositorio, recorrencia=None, parent=None):
         super().__init__("Editar recorrência" if recorrencia else "Nova recorrência", parent)
@@ -349,26 +328,21 @@ class DialogoRecorrencia(DialogoBase):
         self.form.addRow("Término", self.linha_termino)
         self.form.addRow("", self.ck_ativo)
 
-        self.cb_tipo.currentIndexChanged.connect(
-            lambda _: self._recarregar_categorias())
+        self.cb_tipo.currentIndexChanged.connect(lambda _: self._recarregar_categorias())
 
         if recorrencia:
             self.ed_descricao.setText(recorrencia.descricao)
-            self.cb_tipo.setCurrentIndex(
-                self.cb_tipo.findData(recorrencia.tipo))
+            self.cb_tipo.setCurrentIndex(self.cb_tipo.findData(recorrencia.tipo))
             self._recarregar_categorias(recorrencia.categoria_id)
-            self.cb_conta.setCurrentIndex(
-                self.cb_conta.findData(recorrencia.conta_id))
+            self.cb_conta.setCurrentIndex(self.cb_conta.findData(recorrencia.conta_id))
             self.sp_valor.setValue(recorrencia.valor)
             i = self.cb_frequencia.findData(recorrencia.frequencia)
             self.cb_frequencia.setCurrentIndex(max(0, i))
             if recorrencia.data_inicio:
-                a, m, d = (int(x)
-                           for x in recorrencia.data_inicio[:10].split("-"))
+                a, m, d = (int(x) for x in recorrencia.data_inicio[:10].split("-"))
                 self.ed_inicio.setDate(QDate(a, m, d))
             if recorrencia.data_fim:
-                a, m, d = (int(x)
-                           for x in recorrencia.data_fim[:10].split("-"))
+                a, m, d = (int(x) for x in recorrencia.data_fim[:10].split("-"))
                 self.linha_termino.rb_data.setChecked(True)
                 self.linha_termino.ed_data.setDate(QDate(a, m, d))
             elif recorrencia.qtd_vezes is not None:
@@ -398,11 +372,8 @@ class DialogoRecorrencia(DialogoBase):
         if self.sp_valor.value() <= 0:
             return "Informe um valor maior que zero."
         linha = self.linha_termino
-        if linha.rb_qtd.isChecked() and linha.sp_qtd.value() <= 0:
-            return "Informe uma quantidade de ocorrências maior que zero."
         if linha.rb_data.isChecked():
-            dt_fim = linha.ed_data.date()
-            if dt_fim < self.ed_inicio.date():
+            if linha.ed_data.date() < self.ed_inicio.date():
                 return "A data de término não pode ser anterior à 1ª ocorrência."
         return None
 
@@ -422,10 +393,245 @@ class DialogoRecorrencia(DialogoBase):
                     ativo=1 if self.ck_ativo.isChecked() else 0)
 
 
+class DialogoCartao(DialogoBase):
+    """Cadastro de cartão de crédito: conta de débito, fechamento,
+    vencimento e limite."""
+
+    def __init__(self, repo: Repositorio, cartao=None, parent=None):
+        super().__init__("Editar cartão" if cartao else "Novo cartão de crédito", parent)
+        self.repo = repo
+        self.cartao = cartao
+
+        self.ed_nome = QLineEdit()
+        self.ed_nome.setMaxLength(120)
+        self.cb_conta = QComboBox()
+        for conta in repo.listar_contas(apenas_ativas=True):
+            self.cb_conta.addItem(conta.nome, conta.id)
+        self.sp_fechamento = QSpinBox()
+        self.sp_fechamento.setRange(1, 31)
+        self.sp_fechamento.setValue(20)
+        self.sp_vencimento = QSpinBox()
+        self.sp_vencimento.setRange(1, 31)
+        self.sp_vencimento.setValue(10)
+        self.sp_limite = DialogoBase._spin_moeda()
+        self.sp_limite.setPrefix("")
+        self.ck_ativo = QCheckBox("Cartão ativo")
+        self.ck_ativo.setChecked(True)
+
+        self.form.addRow("Nome*", self.ed_nome)
+        self.form.addRow("Conta que paga a fatura*", self.cb_conta)
+        self.form.addRow("Dia do fechamento", self.sp_fechamento)
+        self.form.addRow("Dia do vencimento", self.sp_vencimento)
+        self.form.addRow("Limite total", self.sp_limite)
+        self.form.addRow("", self.ck_ativo)
+
+        if cartao:
+            self.ed_nome.setText(cartao.nome)
+            self.cb_conta.setCurrentIndex(self.cb_conta.findData(cartao.conta_id))
+            self.sp_fechamento.setValue(cartao.dia_fechamento)
+            self.sp_vencimento.setValue(cartao.dia_vencimento)
+            self.sp_limite.setValue(cartao.limite_total)
+            self.ck_ativo.setChecked(bool(cartao.ativo))
+
+    def validar(self):
+        if not self.ed_nome.text().strip():
+            return "Informe o nome do cartão."
+        if self.cb_conta.currentData() is None:
+            return "Cadastre uma conta antes (é ela que paga a fatura)."
+        return None
+
+    def dados(self):
+        return dict(nome=self.ed_nome.text().strip(),
+                    conta_id=self.cb_conta.currentData(),
+                    dia_fechamento=self.sp_fechamento.value(),
+                    dia_vencimento=self.sp_vencimento.value(),
+                    limite_total=self.sp_limite.value(),
+                    ativo=1 if self.ck_ativo.isChecked() else 0)
+
+
+class DialogoCompra(DialogoBase):
+    """Nova compra no cartão — à vista ou parcelada.
+
+    Calcula e exibe a FATURA resultante pela regra do fechamento
+    (editável para casos excepcionais) e a progressão das parcelas
+    (avança 1 fatura por mês a partir da escolhida).
+    """
+
+    def __init__(self, repo: Repositorio, cartao, parent=None):
+        super().__init__(f"Nova compra — {cartao.nome}", parent)
+        self.repo = repo
+        self.cartao = cartao
+
+        self.cb_categoria = QComboBox()
+        for cat in repo.listar_categorias(tipo="saida", apenas_ativas=True):
+            self.cb_categoria.addItem(cat.nome, cat.id)
+        self.ed_descricao = QLineEdit()
+        self.ed_descricao.setMaxLength(200)
+        self.ed_data = QDateEdit(QDate.currentDate())
+        self.ed_data.setDisplayFormat("dd/MM/yyyy")
+        self.ed_data.setCalendarPopup(True)
+        self.sp_valor_total = DialogoBase._spin_moeda()
+        self.sp_parcelas = QSpinBox()
+        self.sp_parcelas.setRange(1, 120)
+        self.sp_parcelas.setValue(1)
+        self.cb_fatura = QComboBox()
+        # 60 faturas à frente é suficiente para 120x semal? não: 120x = 120
+        # faturas. Gera 144 opções (12 anos).
+        hoje = QDate.currentDate()
+        ano, mes = hoje.year(), hoje.month()
+        for _ in range(144):
+            self.cb_fatura.addItem(fmt_mes_curto(f"{ano:04d}-{mes:02d}"),
+                                   f"{ano:04d}-{mes:02d}")
+            ano, mes = (ano + 1, 1) if mes == 12 else (ano, mes + 1)
+        self.lb_preview = QLabel("")
+        self.lb_preview.setWordWrap(True)
+
+        self.form.addRow("Categoria*", self.cb_categoria)
+        self.form.addRow("Descrição", self.ed_descricao)
+        self.form.addRow("Data da compra", self.ed_data)
+        self.form.addRow("Valor total*", self.sp_valor_total)
+        self.form.addRow("Parcelas", self.sp_parcelas)
+        self.form.addRow("Fatura de entrada*", self.cb_fatura)
+        self.form.addRow("", self.lb_preview)
+
+        self._recalcular()
+        self.ed_data.dateChanged.connect(self._recalcular)
+        self.sp_valor_total.valueChanged.connect(self._recalcular)
+        self.sp_parcelas.valueChanged.connect(self._recalcular)
+        self.cb_fatura.currentIndexChanged.connect(self._recalcular)
+
+    def _fatura_calculada(self) -> str:
+        """Fatura pela regra do fechamento do cartão."""
+        d = self.ed_data.date()
+        dia = d.day()
+        meses = 1 if dia <= self.cartao.dia_fechamento else 2
+        ano, mes = d.year(), d.month()
+        for _ in range(meses):
+            ano, mes = (ano + 1, 1) if mes == 12 else (ano, mes + 1)
+        return f"{ano:04d}-{mes:02d}"
+
+    def _recalcular(self):
+        """Recalcula a fatura sugerida e o preview das parcelas.
+
+        Não sobrescreve uma escolha manual: se a fatura calculada mudou
+        (ex.: usuário mexeu na data), atualiza a seleção do combo.
+        """
+        calculada = self._fatura_calculada()
+        i = self.cb_fatura.findData(calculada)
+        if i >= 0 and self.cb_fatura.currentData() != calculada:
+            self.cb_fatura.setCurrentIndex(i)
+        fatura = self.cb_fatura.currentData() or calculada
+        venc_iso = Repositorio.vencimento_de_fatura(
+            fatura, self.cartao.dia_vencimento)
+        n = self.sp_parcelas.value()
+        valor = self.sp_valor_total.value()
+        if n > 1 and valor > 0:
+            por = round(valor / n, 2)
+            anos = [self._fatura_deslocada(fatura, k) for k in range(n)]
+            ultima = anos[-1]
+            self.lb_preview.setText(
+                f"{n}× de {fmt_moeda(por)} (1ª {fmt_moeda(valor - por * (n - 1))})\n"
+                f"Faturas: {fmt_mes_curto(fatura)} a {fmt_mes_curto(ultima)} · "
+                f"1º vencimento: {fmt_data(venc_iso)}")
+        else:
+            self.lb_preview.setText(
+                f"Vence em {fmt_data(venc_iso)} "
+                f"(fatura {fmt_mes_curto(fatura)})")
+
+    @staticmethod
+    def _fatura_deslocada(fatura: str, meses: int) -> str:
+        ano, mes = int(fatura[:4]), int(fatura[5:7])
+        for _ in range(meses):
+            ano, mes = (ano + 1, 1) if mes == 12 else (ano, mes + 1)
+        return f"{ano:04d}-{mes:02d}"
+
+    def validar(self):
+        if self.cb_categoria.currentData() is None:
+            return "Cadastre uma categoria de saída antes."
+        if self.sp_valor_total.value() <= 0:
+            return "Informe um valor maior que zero."
+        if self.cb_fatura.currentData() is None:
+            return "Escolha a fatura de entrada."
+        return None
+
+    def dados(self):
+        return dict(cartao_id=self.cartao.id,
+                    categoria_id=self.cb_categoria.currentData(),
+                    descricao=self.ed_descricao.text().strip(),
+                    data_compra=self.ed_data.date().toString("yyyy-MM-dd"),
+                    valor_total=self.sp_valor_total.value(),
+                    total_parcelas=self.sp_parcelas.value(),
+                    fatura=self.cb_fatura.currentData())
+
+
+class DialogoPagarFatura(DialogoBase):
+    """Pagamento de UMA fatura: gera 1 lançamento de saída pago na conta
+    escolhida e quita as parcelas em aberto da fatura."""
+
+    def __init__(self, repo: Repositorio, fatura_info: dict, parent=None):
+        # fatura_info: {cartao_id, cartao_nome, fatura, vencimento, total, qtde}
+        super().__init__(
+            f"Pagar fatura {fmt_mes_curto(fatura_info['fatura'])} — "
+            f"{fatura_info['cartao_nome']}", parent)
+        self.repo = repo
+        self.info = fatura_info
+
+        self.lb_total = QLabel(
+            f"Total em aberto: {fmt_moeda(fatura_info['total'])} · "
+            f"{fatura_info['qtde']} parcela(s) · vencimento "
+            f"{fmt_data(fatura_info['vencimento'])}")
+        self.lb_total.setObjectName("tituloCard")
+        self.lb_total.setWordWrap(True)
+
+        self.cb_conta = QComboBox()
+        self.conta_padrao = None
+        for conta in repo.listar_contas(apenas_ativas=True):
+            self.cb_conta.addItem(conta.nome, conta.id)
+        # Pré-seleciona a conta vinculada ao cartão, se ativa.
+        cartoes = [c for c in repo.listar_cartoes()
+                   if c.id == fatura_info["cartao_id"]]
+        if cartoes:
+            self.conta_padrao = cartoes[0].conta_id
+            i = self.cb_conta.findData(self.conta_padrao)
+            if i >= 0:
+                self.cb_conta.setCurrentIndex(i)
+
+        self.cb_categoria = QComboBox()
+        for cat in repo.listar_categorias(tipo="saida", apenas_ativas=True):
+            self.cb_categoria.addItem(cat.nome, cat.id)
+
+        self.ed_data = QDateEdit(QDate.currentDate())
+        self.ed_data.setDisplayFormat("dd/MM/yyyy")
+        self.ed_data.setCalendarPopup(True)
+
+        self.ed_descricao = QLineEdit(
+            f"Fatura {fatura_info['cartao_nome']} — "
+            f"{fmt_mes_curto(fatura_info['fatura'])}")
+        self.ed_descricao.setMaxLength(200)
+
+        self.form.addRow("", self.lb_total)
+        self.form.addRow("Conta debitada*", self.cb_conta)
+        self.form.addRow("Categoria*", self.cb_categoria)
+        self.form.addRow("Data do pagamento", self.ed_data)
+        self.form.addRow("Descrição", self.ed_descricao)
+
+    def validar(self):
+        if self.cb_conta.currentData() is None:
+            return "Selecione a conta que paga a fatura."
+        if self.cb_categoria.currentData() is None:
+            return "Selecione a categoria do pagamento."
+        return None
+
+    def dados(self):
+        return dict(cartao_id=self.info["cartao_id"], fatura=self.info["fatura"],
+                    conta_id=self.cb_conta.currentData(),
+                    categoria_id=self.cb_categoria.currentData(),
+                    data_mov=self.ed_data.date().toString("yyyy-MM-dd"),
+                    descricao=self.ed_descricao.text().strip())
+
+
 class DialogoNovoUsuario(DialogoBase):
-    """Cadastro de usuário pelo admin. O novo usuário nasce com papel
-    'usuario' e recebe suas categorias padrão; o admin pode promovê-lo
-    depois pela página Usuários."""
+    """Cadastro de usuário pelo admin."""
 
     def __init__(self, parent=None):
         super().__init__("Novo usuário", parent)

@@ -9,9 +9,9 @@ from PyQt6.QtWidgets import (QApplication, QButtonGroup, QFrame, QHBoxLayout,
                              QLabel, QMainWindow, QMessageBox, QPushButton,
                              QStackedWidget, QVBoxLayout, QWidget)
 
-from ui.paginas import (PaginaCategorias, PaginaContas, PaginaDashboard,
-                        PaginaLancamentos, PaginaRecorrencias,
-                        PaginaRelatorios, PaginaUsuarios)
+from ui.paginas import (PaginaCartoes, PaginaCategorias, PaginaContas,
+                        PaginaDashboard, PaginaLancamentos,
+                        PaginaRecorrencias, PaginaRelatorios, PaginaUsuarios)
 from ui.tema import alternar_tema, aplicar_tema, ler_tema, salvar_tema
 
 
@@ -21,6 +21,7 @@ class JanelaPrincipal(QMainWindow):
     PAGINAS = [("Dashboard", PaginaDashboard),
                ("Lançamentos", PaginaLancamentos),
                ("Contas", PaginaContas),
+               ("Cartões", PaginaCartoes),
                ("Categorias", PaginaCategorias),
                ("Recorrências", PaginaRecorrencias),
                ("Relatórios", PaginaRelatorios)]
@@ -66,8 +67,7 @@ class JanelaPrincipal(QMainWindow):
         lb_email = QLabel(self.sessao.usuario.email)
         lb_email.setObjectName("tituloCard")
         lb_email.setWordWrap(True)
-        lb_papel = QLabel(
-            "Administrador" if self.sessao.eh_admin else "Usuário")
+        lb_papel = QLabel("Administrador" if self.sessao.eh_admin else "Usuário")
         lb_papel.setObjectName("tituloCard")
         vu.addWidget(lb_nome)
         vu.addWidget(lb_email)

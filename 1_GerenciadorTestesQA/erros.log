@@ -159,3 +159,59 @@ Traceback (most recent call last):
 KeyError: 'perc_execucao'
 
 ============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
