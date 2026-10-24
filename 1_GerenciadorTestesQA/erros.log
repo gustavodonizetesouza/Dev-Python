@@ -215,3 +215,717 @@ Traceback (most recent call last):
 KeyError: 'perc_execucao'
 
 ============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+[2026-10-20 14:42:06] Falha ao criar/verificar o schema do banco do cliente ativo.
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 730, in init_db
+    Database.criar_schema_para(cfg)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 714, in criar_schema_para
+    Database._criar_tabelas(cur, dialeto)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 739, in _criar_tabelas
+    Database._criar_tabelas_sqlserver(cur)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 1035, in _criar_tabelas_sqlserver
+    cur.execute("""
+    ~~~~~~~~~~~^^^^
+        CREATE TABLE ciclo_rotinas (
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<13 lines>...
+        )
+        ^
+    """)
+    ^^^^
+pyodbc.ProgrammingError: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__ciclo_rot__etapa__6A30C649' on table 'ciclo_rotinas' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW); [42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Could not create constraint or index. See previous errors. (1750)")
+
+============================================================
+[2026-10-20 14:42:34] Falha ao garantir o schema no banco 'WapGestorEssencialTestes' (sqlserver). As tabelas podem não existir — verifique permissões (db_owner/db_ddladmin) e o erros.log.
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 601, in get_connection
+    Database._criar_tabelas(cur, dialeto)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 739, in _criar_tabelas
+    Database._criar_tabelas_sqlserver(cur)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 1035, in _criar_tabelas_sqlserver
+    cur.execute("""
+    ~~~~~~~~~~~^^^^
+        CREATE TABLE ciclo_rotinas (
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<13 lines>...
+        )
+        ^
+    """)
+    ^^^^
+pyodbc.ProgrammingError: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__ciclo_rot__etapa__0D7A0286' on table 'ciclo_rotinas' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW); [42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Could not create constraint or index. See previous errors. (1750)")
+
+============================================================
+[2026-10-21 07:06:57] Falha ao criar/verificar o schema do banco do cliente ativo.
+Traceback (most recent call last):
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 730, in init_db
+    Database.criar_schema_para(cfg)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 711, in criar_schema_para
+    conn = Database._conectar(cfg)
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 618, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "c:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 654, in _conectar_sqlserver
+    return pyodbc.connect(conn_str)
+           ~~~~~~~~~~~~~~^^^^^^^^^^
+pyodbc.OperationalError: ('08001', '[08001] [Microsoft][ODBC Driver 18 for SQL Server]TCP Provider: O tempo limite de espera foi atingido.\r\n (258) (SQLDriverConnect); [08001] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0); [08001] [Microsoft][ODBC Driver 18 for SQL Server]A network-related or instance-specific error has occurred while establishing a connection to 24.152.39.128\\MSSQLSERVER2022,1433. Server is not found or not accessible. Check if instance name is correct and if SQL Server is configured to allow remote connections. For more information see SQL Server Books Online. (258)')
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\casos_widget.py", line 56, in _carregar_tipos_no_combo
+    tipos = TipoTesteRepositorio.listar_nomes()
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\models.py", line 1290, in listar_nomes
+    return [t["nome"] for t in TipoTesteRepositorio.listar()]
+                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\models.py", line 1281, in listar
+    conn = Database.get_connection()
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 638, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 660, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 698, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('08001', '[08001] [Microsoft][ODBC Driver 18 for SQL Server]TCP Provider: O tempo limite de espera foi atingido.\r\n (258) (SQLDriverConnect); [08001] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0); [08001] [Microsoft][ODBC Driver 18 for SQL Server]A network-related or instance-specific error has occurred while establishing a connection to 24.152.39.128\\MSSQLSERVER2022,1433. Server is not found or not accessible. Check if instance name is correct and if SQL Server is configured to allow remote connections. For more information see SQL Server Books Online. (258)')
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\casos_widget.py", line 56, in _carregar_tipos_no_combo
+    tipos = TipoTesteRepositorio.listar_nomes()
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\models.py", line 1290, in listar_nomes
+    return [t["nome"] for t in TipoTesteRepositorio.listar()]
+                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\models.py", line 1281, in listar
+    conn = Database.get_connection()
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 638, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 660, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 698, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.OperationalError: ('08001', '[08001] [Microsoft][ODBC Driver 18 for SQL Server]TCP Provider: O tempo limite de espera foi atingido.\r\n (258) (SQLDriverConnect); [08001] [Microsoft][ODBC Driver 18 for SQL Server]Login timeout expired (0); [08001] [Microsoft][ODBC Driver 18 for SQL Server]A network-related or instance-specific error has occurred while establishing a connection to 24.152.39.128\\MSSQLSERVER2022,1433. Server is not found or not accessible. Check if instance name is correct and if SQL Server is configured to allow remote connections. For more information see SQL Server Books Online. (258)')
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 420, in carregar
+    f"({k['perc_execucao']}%)  |  Aprovados: {k['aprovados']}  |  "
+        ~^^^^^^^^^^^^^^^^^
+KeyError: 'perc_execucao'
+
+============================================================
+[2026-10-23 09:10:53] Falha ao criar/verificar o schema do banco ativo.
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 821, in init_db
+    Database.criar_schema_para(cfg)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 802, in criar_schema_para
+    Database._criar_tabelas(cur, dialeto)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 830, in _criar_tabelas
+    Database._criar_tabelas_sqlserver(cur)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 1118, in _criar_tabelas_sqlserver
+    cur.execute("""
+    ~~~~~~~~~~~^^^^
+        CREATE TABLE ciclo_rotinas (
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<13 lines>...
+        )
+        ^
+    """)
+    ^^^^
+pyodbc.ProgrammingError: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__ciclo_rot__etapa__40F9A68C' on table 'ciclo_rotinas' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW); [42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Could not create constraint or index. See previous errors. (1750)")
+
+============================================================
+[2026-10-23 09:10:53] Falha ao garantir o schema no banco 'WapGestorEssencialTestes' (sqlserver). As tabelas podem não existir — verifique permissões (db_owner/db_ddladmin) e o erros.log.
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 686, in get_connection
+    Database._criar_tabelas(cur, dialeto)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 830, in _criar_tabelas
+    Database._criar_tabelas_sqlserver(cur)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 1118, in _criar_tabelas_sqlserver
+    cur.execute("""
+    ~~~~~~~~~~~^^^^
+        CREATE TABLE ciclo_rotinas (
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<13 lines>...
+        )
+        ^
+    """)
+    ^^^^
+pyodbc.ProgrammingError: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__ciclo_rot__etapa__489AC854' on table 'ciclo_rotinas' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW); [42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Could not create constraint or index. See previous errors. (1750)")
+
+============================================================
+[2026-10-23 09:10:54] Falha ao garantir o schema no banco 'WapGestorEssencialTestes' (sqlserver). As tabelas podem não existir — verifique permissões (db_owner/db_ddladmin) e o erros.log.
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 686, in get_connection
+    Database._criar_tabelas(cur, dialeto)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 830, in _criar_tabelas
+    Database._criar_tabelas_sqlserver(cur)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 1118, in _criar_tabelas_sqlserver
+    cur.execute("""
+    ~~~~~~~~~~~^^^^
+        CREATE TABLE ciclo_rotinas (
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<13 lines>...
+        )
+        ^
+    """)
+    ^^^^
+pyodbc.ProgrammingError: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__ciclo_rot__etapa__503BEA1C' on table 'ciclo_rotinas' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW); [42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Could not create constraint or index. See previous errors. (1750)")
+
+============================================================
+[2026-10-23 09:10:58] Falha ao garantir o schema no banco 'WapGestorEssencialTestes' (sqlserver). As tabelas podem não existir — verifique permissões (db_owner/db_ddladmin) e o erros.log.
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 686, in get_connection
+    Database._criar_tabelas(cur, dialeto)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 830, in _criar_tabelas
+    Database._criar_tabelas_sqlserver(cur)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 1118, in _criar_tabelas_sqlserver
+    cur.execute("""
+    ~~~~~~~~~~~^^^^
+        CREATE TABLE ciclo_rotinas (
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<13 lines>...
+        )
+        ^
+    """)
+    ^^^^
+pyodbc.ProgrammingError: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__ciclo_rot__etapa__57DD0BE4' on table 'ciclo_rotinas' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW); [42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Could not create constraint or index. See previous errors. (1750)")
+
+============================================================
+[2026-10-23 09:10:59] Falha ao garantir o schema no banco 'WapGestorEssencialTestes' (sqlserver). As tabelas podem não existir — verifique permissões (db_owner/db_ddladmin) e o erros.log.
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 686, in get_connection
+    Database._criar_tabelas(cur, dialeto)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 830, in _criar_tabelas
+    Database._criar_tabelas_sqlserver(cur)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 1118, in _criar_tabelas_sqlserver
+    cur.execute("""
+    ~~~~~~~~~~~^^^^
+        CREATE TABLE ciclo_rotinas (
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<13 lines>...
+        )
+        ^
+    """)
+    ^^^^
+pyodbc.ProgrammingError: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__ciclo_rot__etapa__5F7E2DAC' on table 'ciclo_rotinas' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW); [42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Could not create constraint or index. See previous errors. (1750)")
+
+============================================================
+[2026-10-23 09:10:59] Falha ao garantir o schema no banco 'WapGestorEssencialTestes' (sqlserver). As tabelas podem não existir — verifique permissões (db_owner/db_ddladmin) e o erros.log.
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 686, in get_connection
+    Database._criar_tabelas(cur, dialeto)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 830, in _criar_tabelas
+    Database._criar_tabelas_sqlserver(cur)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 1118, in _criar_tabelas_sqlserver
+    cur.execute("""
+    ~~~~~~~~~~~^^^^
+        CREATE TABLE ciclo_rotinas (
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<13 lines>...
+        )
+        ^
+    """)
+    ^^^^
+pyodbc.ProgrammingError: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__ciclo_rot__etapa__671F4F74' on table 'ciclo_rotinas' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW); [42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Could not create constraint or index. See previous errors. (1750)")
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\relatorios_widget.py", line 232, in carregar
+    self._carregar_prontidao(ciclo_id)
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\relatorios_widget.py", line 242, in _carregar_prontidao
+    p = KpiRepositorio.prontidao(ciclo_id)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\models.py", line 1436, in prontidao
+    r = KpiRepositorio.rotinas(ciclo_id)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\models.py", line 1380, in rotinas
+    cur.execute("""
+    ~~~~~~~~~~~^^^^
+        SELECT COUNT(*) AS total,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        FROM ciclo_rotinas WHERE ciclo_id = ?
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    """, (ciclo_id,))
+    ^^^^^^^^^^^^^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 124, in execute
+    self._cur.execute(sql, params)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+pyodbc.ProgrammingError: ('42S02', "[42S02] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Invalid object name 'ciclo_rotinas'. (208) (SQLExecDirectW); [42S02] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Statement(s) could not be prepared. (8180)")
+
+============================================================
+[2026-10-23 09:11:00] Falha ao garantir o schema no banco 'WapGestorEssencialTestes' (sqlserver). As tabelas podem não existir — verifique permissões (db_owner/db_ddladmin) e o erros.log.
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 686, in get_connection
+    Database._criar_tabelas(cur, dialeto)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 830, in _criar_tabelas
+    Database._criar_tabelas_sqlserver(cur)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 1118, in _criar_tabelas_sqlserver
+    cur.execute("""
+    ~~~~~~~~~~~^^^^
+        CREATE TABLE ciclo_rotinas (
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<13 lines>...
+        )
+        ^
+    """)
+    ^^^^
+pyodbc.ProgrammingError: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__ciclo_rot__etapa__6EC0713C' on table 'ciclo_rotinas' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW); [42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Could not create constraint or index. See previous errors. (1750)")
+
+============================================================
+[2026-10-23 09:11:01] Falha ao garantir o schema no banco 'WapGestorEssencialTestes' (sqlserver). As tabelas podem não existir — verifique permissões (db_owner/db_ddladmin) e o erros.log.
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 686, in get_connection
+    Database._criar_tabelas(cur, dialeto)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 830, in _criar_tabelas
+    Database._criar_tabelas_sqlserver(cur)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 1118, in _criar_tabelas_sqlserver
+    cur.execute("""
+    ~~~~~~~~~~~^^^^
+        CREATE TABLE ciclo_rotinas (
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<13 lines>...
+        )
+        ^
+    """)
+    ^^^^
+pyodbc.ProgrammingError: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__ciclo_rot__etapa__76619304' on table 'ciclo_rotinas' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW); [42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Could not create constraint or index. See previous errors. (1750)")
+
+============================================================
+[2026-10-23 09:11:04] Falha ao garantir o schema no banco 'WapGestorEssencialTestes' (sqlserver). As tabelas podem não existir — verifique permissões (db_owner/db_ddladmin) e o erros.log.
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 686, in get_connection
+    Database._criar_tabelas(cur, dialeto)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 830, in _criar_tabelas
+    Database._criar_tabelas_sqlserver(cur)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 1118, in _criar_tabelas_sqlserver
+    cur.execute("""
+    ~~~~~~~~~~~^^^^
+        CREATE TABLE ciclo_rotinas (
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<13 lines>...
+        )
+        ^
+    """)
+    ^^^^
+pyodbc.ProgrammingError: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__ciclo_rot__etapa__7E02B4CC' on table 'ciclo_rotinas' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW); [42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Could not create constraint or index. See previous errors. (1750)")
+
+============================================================
+[2026-10-23 09:11:09] Falha ao garantir o schema no banco 'WapGestorEssencialTestes' (sqlserver). As tabelas podem não existir — verifique permissões (db_owner/db_ddladmin) e o erros.log.
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 686, in get_connection
+    Database._criar_tabelas(cur, dialeto)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 830, in _criar_tabelas
+    Database._criar_tabelas_sqlserver(cur)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 1118, in _criar_tabelas_sqlserver
+    cur.execute("""
+    ~~~~~~~~~~~^^^^
+        CREATE TABLE ciclo_rotinas (
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<13 lines>...
+        )
+        ^
+    """)
+    ^^^^
+pyodbc.ProgrammingError: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__ciclo_rot__etapa__05A3D694' on table 'ciclo_rotinas' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW); [42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Could not create constraint or index. See previous errors. (1750)")
+
+============================================================
+[2026-10-23 09:11:21] Falha ao garantir o schema no banco 'WapGestorEssencialTestes' (sqlserver). As tabelas podem não existir — verifique permissões (db_owner/db_ddladmin) e o erros.log.
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 686, in get_connection
+    Database._criar_tabelas(cur, dialeto)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 830, in _criar_tabelas
+    Database._criar_tabelas_sqlserver(cur)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 1118, in _criar_tabelas_sqlserver
+    cur.execute("""
+    ~~~~~~~~~~~^^^^
+        CREATE TABLE ciclo_rotinas (
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<13 lines>...
+        )
+        ^
+    """)
+    ^^^^
+pyodbc.ProgrammingError: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__ciclo_rot__etapa__0D44F85C' on table 'ciclo_rotinas' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW); [42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Could not create constraint or index. See previous errors. (1750)")
+
+============================================================

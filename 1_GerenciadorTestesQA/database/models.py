@@ -1,4 +1,12 @@
-"""Repositórios de acesso a dados."""
+"""Repositórios de acesso a dados — SQL neutro de dialeto (SQLite e SQL Server).
+
+As diferenças entre bancos (lastrowid, tipos de linha, DDL) são resolvidas
+pela camada de conexão (RowDict/_CursorCompat em connection.py). Aqui o SQL
+é ANSI + parâmetros '?', com timestamps passados como datetime do Python —
+portável para qualquer driver, inclusive a futura versão ASP.NET.
+"""
+from datetime import datetime
+
 from .connection import Database
 from utils.seguranca import salvar_senha
 
@@ -52,8 +60,7 @@ class ClienteRepositorio:
     def excluir(cliente_id):
         conn = Database.get_config_connection()
         cur = conn.cursor()
-        cur.execute(
-            "SELECT COUNT(*) FROM conexoes WHERE cliente_id=?", (cliente_id,))
+        cur.execute("SELECT COUNT(*) FROM conexoes WHERE cliente_id=?", (cliente_id,))
         if cur.fetchone()[0] > 0:
             conn.close()
             return False
@@ -79,8 +86,7 @@ class ModuloRepositorio:
         conn = Database.get_connection()
         cur = conn.cursor()
         try:
-            cur.execute("INSERT INTO modulos (nome) VALUES (?)",
-                        (nome.strip().upper(),))
+            cur.execute("INSERT INTO modulos (nome) VALUES (?)", (nome.strip().upper(),))
             conn.commit()
             novo_id = cur.lastrowid
             conn.close()
@@ -111,8 +117,7 @@ class ModuloRepositorio:
             if cur.fetchone():
                 conn.close()
                 return False, f"Já existe um módulo com o nome '{novo_nome}'."
-            cur.execute("UPDATE modulos SET nome = ? WHERE id = ?",
-                        (novo_nome, modulo_id))
+            cur.execute("UPDATE modulos SET nome = ? WHERE id = ?", (novo_nome, modulo_id))
             cur.execute("UPDATE casos_teste SET modulo = ? WHERE modulo = ?",
                         (novo_nome, antigo_nome))
             cur.execute("UPDATE melhorias SET modulo = ? WHERE modulo = ?",
@@ -134,8 +139,7 @@ class ModuloRepositorio:
         if not row:
             conn.close()
             return False
-        cur.execute(
-            "SELECT COUNT(*) FROM casos_teste WHERE modulo = ?", (row[0],))
+        cur.execute("SELECT COUNT(*) FROM casos_teste WHERE modulo = ?", (row[0],))
         if cur.fetchone()[0] > 0:
             conn.close()
             return False
@@ -205,8 +209,7 @@ class TipoCicloRepositorio:
         conn = Database.get_connection()
         cur = conn.cursor()
         try:
-            cur.execute("INSERT INTO tipos_ciclo (nome) VALUES (?)",
-                        (nome.strip().upper(),))
+            cur.execute("INSERT INTO tipos_ciclo (nome) VALUES (?)", (nome.strip().upper(),))
             conn.commit()
             novo_id = cur.lastrowid
             conn.close()
@@ -223,8 +226,7 @@ class TipoCicloRepositorio:
         conn = Database.get_connection()
         cur = conn.cursor()
         try:
-            cur.execute(
-                "SELECT nome FROM tipos_ciclo WHERE id = ?", (tipo_id,))
+            cur.execute("SELECT nome FROM tipos_ciclo WHERE id = ?", (tipo_id,))
             row = cur.fetchone()
             if not row:
                 conn.close()
@@ -238,8 +240,7 @@ class TipoCicloRepositorio:
             if cur.fetchone():
                 conn.close()
                 return False, f"Já existe um tipo com o nome '{novo_nome}'."
-            cur.execute(
-                "UPDATE tipos_ciclo SET nome = ? WHERE id = ?", (novo_nome, tipo_id))
+            cur.execute("UPDATE tipos_ciclo SET nome = ? WHERE id = ?", (novo_nome, tipo_id))
             cur.execute("UPDATE ciclos SET tipo = ? WHERE tipo = ?",
                         (novo_nome, antigo_nome))
             conn.commit()
@@ -310,8 +311,7 @@ class CicloRepositorio:
                                 status, responsavel, custo_orcado)
             VALUES (?,?,?,?,?,?,?,?,?)
         """, (dados["nome"], dados.get("tipo", "Virada de Versão"), dados.get("versao"),
-              dados.get("ano"), dados.get(
-                  "data_inicio"), dados.get("data_fim"),
+              dados.get("ano"), dados.get("data_inicio"), dados.get("data_fim"),
               dados.get("status", "Planejado"), dados.get("responsavel"),
               dados.get("custo_orcado", 0)))
         conn.commit()
@@ -327,8 +327,7 @@ class CicloRepositorio:
             UPDATE ciclos SET nome=?, tipo=?, versao=?, ano=?, data_inicio=?, data_fim=?,
                 status=?, responsavel=?, custo_orcado=? WHERE id=?
         """, (dados["nome"], dados.get("tipo", "Virada de Versão"), dados.get("versao"),
-              dados.get("ano"), dados.get(
-                  "data_inicio"), dados.get("data_fim"),
+              dados.get("ano"), dados.get("data_inicio"), dados.get("data_fim"),
               dados.get("status", "Planejado"), dados.get("responsavel"),
               dados.get("custo_orcado", 0), ciclo_id))
         conn.commit()
@@ -358,13 +357,11 @@ class CicloRepositorio:
                                 status, responsavel, custo_orcado)
             VALUES (?,?,?,?,?,?,?,?,?)
         """, (f"{origem.get('nome')} (cópia)", origem.get("tipo") or "Virada de Versão",
-              origem.get("versao"), origem.get(
-                  "ano"), origem.get("data_inicio"),
+              origem.get("versao"), origem.get("ano"), origem.get("data_inicio"),
               origem.get("data_fim"), "Planejado", origem.get("responsavel"),
               origem.get("custo_orcado") or 0))
         novo_id = cur.lastrowid
-        casos = cur.execute(
-            "SELECT * FROM casos_teste WHERE ciclo_id=?", (ciclo_id,)).fetchall()
+        casos = cur.execute("SELECT * FROM casos_teste WHERE ciclo_id=?", (ciclo_id,)).fetchall()
         for c in casos:
             cur.execute("""
                 INSERT INTO casos_teste
@@ -414,8 +411,7 @@ class CicloRepositorio:
     def contar_casos(ciclo_id):
         conn = Database.get_connection()
         cur = conn.cursor()
-        cur.execute(
-            "SELECT COUNT(*) FROM casos_teste WHERE ciclo_id=?", (ciclo_id,))
+        cur.execute("SELECT COUNT(*) FROM casos_teste WHERE ciclo_id=?", (ciclo_id,))
         total = cur.fetchone()[0]
         conn.close()
         return total
@@ -425,16 +421,26 @@ class CicloRepositorio:
                            evidencia, observacoes):
         conn = Database.get_connection()
         cur = conn.cursor()
+        # Timestamp passado como parâmetro Python — portável entre dialetos
+        agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         cur.execute("""
             UPDATE casos_teste SET status_exec=?, percentual=?, responsavel=?, horas_reais=?,
-                evidencia=?, observacoes=?, atualizado_em=datetime('now','localtime')
+                evidencia=?, observacoes=?, atualizado_em=?
             WHERE id=?
-        """, (status, percentual, responsavel, horas_reais, evidencia, observacoes, caso_id))
+        """, (status, percentual, responsavel, horas_reais, evidencia, observacoes,
+              agora, caso_id))
         conn.commit()
         conn.close()
 
     @staticmethod
     def kpis(ciclo_id):
+        """KPIs de execução do ciclo.
+
+        IMPORTANTE: o dict de retorno SEMPRE contém TODAS as chaves — inclusive
+        no caso de ciclo vazio (total=0), onde perc_execucao e perc_aprovacao
+        valem 0. Consumidores (aba Execução, Relatórios) podem acessar
+        k['perc_execucao'] sem risco de KeyError.
+        """
         conn = Database.get_connection()
         cur = conn.cursor()
         cur.execute("""
@@ -450,8 +456,10 @@ class CicloRepositorio:
         row = cur.fetchone()
         conn.close()
         if not row or row[0] == 0:
+            # Ciclo vazio: TODAS as chaves presentes (evita KeyError nos widgets)
             return {"total": 0, "aprovados": 0, "andamento": 0, "defeitos": 0,
-                    "executados": 0, "perc_medio": 0}
+                    "executados": 0, "perc_medio": 0,
+                    "perc_execucao": 0, "perc_aprovacao": 0}
         total = row[0]
         return {
             "total": total,
@@ -472,8 +480,7 @@ class CasoRepositorio:
     def _proximo_codigo(ciclo_id):
         conn = Database.get_connection()
         cur = conn.cursor()
-        cur.execute(
-            "SELECT COUNT(*) FROM casos_teste WHERE ciclo_id=?", (ciclo_id,))
+        cur.execute("SELECT COUNT(*) FROM casos_teste WHERE ciclo_id=?", (ciclo_id,))
         n = cur.fetchone()[0] + 1
         conn.close()
         return f"TC{ciclo_id:02d}-{n:03d}"
@@ -482,8 +489,7 @@ class CasoRepositorio:
     def listar(ciclo_id):
         conn = Database.get_connection()
         cur = conn.cursor()
-        cur.execute(
-            "SELECT * FROM casos_teste WHERE ciclo_id = ? ORDER BY id", (ciclo_id,))
+        cur.execute("SELECT * FROM casos_teste WHERE ciclo_id = ? ORDER BY id", (ciclo_id,))
         rows = [dict(r) for r in cur.fetchall()]
         conn.close()
         return rows
@@ -501,8 +507,7 @@ class CasoRepositorio:
     def inserir(ciclo_id, dados):
         conn = Database.get_connection()
         cur = conn.cursor()
-        codigo = dados.get(
-            "codigo") or CasoRepositorio._proximo_codigo(ciclo_id)
+        codigo = dados.get("codigo") or CasoRepositorio._proximo_codigo(ciclo_id)
         cur.execute("""
             INSERT INTO casos_teste (ciclo_id, codigo, tarefa, descricao, modulo, rotina,
                                      tipo, prioridade, responsavel, requisito_compliance,
@@ -543,10 +548,8 @@ class CasoRepositorio:
 
 class CicloDetalheRepositorio:
     """Etapas, rotinas, horas, custos e KPIs de gestão de um ciclo."""
-    STATUS_ETAPA_OPCOES = ["Não iniciada",
-                           "Em andamento", "Concluída", "Bloqueada"]
-    STATUS_ROTINA_OPCOES = ["Pendente",
-                            "Em andamento", "Concluída", "Cancelada"]
+    STATUS_ETAPA_OPCOES = ["Não iniciada", "Em andamento", "Concluída", "Bloqueada"]
+    STATUS_ROTINA_OPCOES = ["Pendente", "Em andamento", "Concluída", "Cancelada"]
     CATEGORIAS_CUSTO = ["Terceiros", "Licenças", "Despesas", "Outros"]
 
     @staticmethod
@@ -598,8 +601,7 @@ class CicloDetalheRepositorio:
             WHERE id=?
         """, (dados["nome"], dados.get("descricao"), dados.get("responsavel"),
               dados.get("status", "Não iniciada"), dados.get("percentual", 0),
-              dados.get("data_prevista_inicio"), dados.get(
-                  "data_prevista_fim"),
+              dados.get("data_prevista_inicio"), dados.get("data_prevista_fim"),
               dados.get("custo_orcado", 0), etapa_id))
         conn.commit()
         conn.close()
@@ -608,12 +610,9 @@ class CicloDetalheRepositorio:
     def excluir_etapa(etapa_id):
         conn = Database.get_connection()
         cur = conn.cursor()
-        cur.execute(
-            "UPDATE ciclo_rotinas SET etapa_id=NULL WHERE etapa_id=?", (etapa_id,))
-        cur.execute(
-            "UPDATE ciclo_horas SET etapa_id=NULL WHERE etapa_id=?", (etapa_id,))
-        cur.execute(
-            "UPDATE ciclo_custos SET etapa_id=NULL WHERE etapa_id=?", (etapa_id,))
+        cur.execute("UPDATE ciclo_rotinas SET etapa_id=NULL WHERE etapa_id=?", (etapa_id,))
+        cur.execute("UPDATE ciclo_horas SET etapa_id=NULL WHERE etapa_id=?", (etapa_id,))
+        cur.execute("UPDATE ciclo_custos SET etapa_id=NULL WHERE etapa_id=?", (etapa_id,))
         cur.execute("DELETE FROM ciclo_etapas WHERE id=?", (etapa_id,))
         conn.commit()
         conn.close()
@@ -638,8 +637,7 @@ class CicloDetalheRepositorio:
     def _proximo_codigo_rotina(ciclo_id):
         conn = Database.get_connection()
         cur = conn.cursor()
-        cur.execute(
-            "SELECT COUNT(*) FROM ciclo_rotinas WHERE ciclo_id=?", (ciclo_id,))
+        cur.execute("SELECT COUNT(*) FROM ciclo_rotinas WHERE ciclo_id=?", (ciclo_id,))
         n = cur.fetchone()[0] + 1
         conn.close()
         return f"ROT{ciclo_id:02d}-{n:03d}"
@@ -698,8 +696,7 @@ class CicloDetalheRepositorio:
         if rotina.get("status") != "Concluída":
             conn.close()
             return False, "A rotina precisa estar 'Concluída' para gerar um caso de teste.", None
-        ciclo = cur.execute("SELECT * FROM ciclos WHERE id=?",
-                            (rotina["ciclo_id"],)).fetchone()
+        ciclo = cur.execute("SELECT * FROM ciclos WHERE id=?", (rotina["ciclo_id"],)).fetchone()
         conn.close()
         modulo = ciclo["nome"] if ciclo else "Geral"
         caso_id, codigo = CasoRepositorio.inserir(rotina["ciclo_id"], {
@@ -713,8 +710,7 @@ class CicloDetalheRepositorio:
         })
         conn = Database.get_connection()
         cur = conn.cursor()
-        cur.execute(
-            "UPDATE ciclo_rotinas SET caso_teste_id=? WHERE id=?", (caso_id, rotina_id))
+        cur.execute("UPDATE ciclo_rotinas SET caso_teste_id=? WHERE id=?", (caso_id, rotina_id))
         conn.commit()
         conn.close()
         return True, f"Caso de teste {codigo} criado no ciclo a partir da rotina.", caso_id
@@ -847,8 +843,7 @@ class CicloDetalheRepositorio:
 
 
 class MelhoriaRepositorio:
-    STATUS_OPCOES = ["Proposta", "Em análise",
-                     "Aprovada", "Implementada", "Recusada"]
+    STATUS_OPCOES = ["Proposta", "Em análise", "Aprovada", "Implementada", "Recusada"]
 
     @staticmethod
     def _proximo_codigo():
@@ -897,10 +892,8 @@ class MelhoriaRepositorio:
                  ciclo_id, caso_origem_id, observacoes)
             VALUES (?,?,?,?,?,?,?,?,?,?)
         """, (codigo, dados["titulo"], dados.get("descricao"), dados.get("modulo"),
-              dados.get("prioridade", "Media"), dados.get(
-                  "status", "Proposta"),
-              dados.get("responsavel"), dados.get(
-                  "ciclo_id"), dados.get("caso_origem_id"),
+              dados.get("prioridade", "Media"), dados.get("status", "Proposta"),
+              dados.get("responsavel"), dados.get("ciclo_id"), dados.get("caso_origem_id"),
               dados.get("observacoes")))
         conn.commit()
         novo_id = cur.lastrowid
@@ -911,19 +904,19 @@ class MelhoriaRepositorio:
     def atualizar(melhoria_id, dados):
         conn = Database.get_connection()
         cur = conn.cursor()
+        # Timestamp real como parâmetro (corrige bug antigo que gravava a
+        # string literal 'datetime(...)' — e é portável entre dialetos)
         data_impl = None
         if dados.get("status") == "Implementada":
-            data_impl = "datetime('now','localtime')"
+            data_impl = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         cur.execute("""
             UPDATE melhorias SET titulo=?, descricao=?, modulo=?, prioridade=?, status=?,
                 responsavel=?, observacoes=?, ciclo_id=?,
                 data_implementacao=COALESCE(?, data_implementacao)
             WHERE id=?
         """, (dados["titulo"], dados.get("descricao"), dados.get("modulo"),
-              dados.get("prioridade", "Media"), dados.get(
-                  "status", "Proposta"),
-              dados.get("responsavel"), dados.get(
-                  "observacoes"), dados.get("ciclo_id"),
+              dados.get("prioridade", "Media"), dados.get("status", "Proposta"),
+              dados.get("responsavel"), dados.get("observacoes"), dados.get("ciclo_id"),
               data_impl, melhoria_id))
         conn.commit()
         conn.close()
@@ -996,8 +989,7 @@ class ConexaoRepositorio:
         if cliente_id is None:
             cliente = Database._get_cliente_ativo()
             cliente_id = cliente.get("id") if cliente else None
-        cur.execute(
-            "SELECT COUNT(*) FROM conexoes WHERE cliente_id=?", (cliente_id,))
+        cur.execute("SELECT COUNT(*) FROM conexoes WHERE cliente_id=?", (cliente_id,))
         tem_conexao = cur.fetchone()[0] > 0
         padrao = 0 if tem_conexao else 1
         cur.execute("""
@@ -1088,8 +1080,7 @@ class CasoEtapaRepositorio:
         cur.execute("SELECT COALESCE(MAX(ordem),0)+1 FROM caso_etapas WHERE caso_id=?",
                     (caso_id,))
         ordem = cur.fetchone()[0]
-        status = "Passou" if rot["status"] in (
-            "Concluida", "Concluída") else "Nao iniciada"
+        status = "Passou" if rot["status"] in ("Concluida", "Concluída") else "Nao iniciada"
         cur.execute("""
             INSERT INTO caso_etapas (caso_id, rotina_id, nome, ordem, status)
             VALUES (?,?,?,?,?)
@@ -1157,8 +1148,7 @@ class CasoEtapaRepositorio:
     def atualizar_status(etapa_id, status):
         conn = Database.get_connection()
         cur = conn.cursor()
-        cur.execute("UPDATE caso_etapas SET status=? WHERE id=?",
-                    (status, etapa_id))
+        cur.execute("UPDATE caso_etapas SET status=? WHERE id=?", (status, etapa_id))
         conn.commit()
         conn.close()
 
@@ -1212,8 +1202,7 @@ class CasoEtapaRepositorio:
         """Total de etapas e quantas passaram (para exibir na tela)."""
         conn = Database.get_connection()
         cur = conn.cursor()
-        cur.execute(
-            "SELECT COUNT(*) FROM caso_etapas WHERE caso_id=?", (caso_id,))
+        cur.execute("SELECT COUNT(*) FROM caso_etapas WHERE caso_id=?", (caso_id,))
         total = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM caso_etapas WHERE caso_id=? AND status='Passou'",
                     (caso_id,))
@@ -1299,8 +1288,7 @@ class TipoTesteRepositorio:
         conn = Database.get_connection()
         cur = conn.cursor()
         try:
-            cur.execute(
-                "SELECT nome FROM tipos_teste WHERE id = ?", (tipo_id,))
+            cur.execute("SELECT nome FROM tipos_teste WHERE id = ?", (tipo_id,))
             row = cur.fetchone()
             if not row:
                 conn.close()
@@ -1335,8 +1323,7 @@ class TipoTesteRepositorio:
         if not row:
             conn.close()
             return False
-        cur.execute(
-            "SELECT COUNT(*) FROM casos_teste WHERE tipo = ?", (row[0],))
+        cur.execute("SELECT COUNT(*) FROM casos_teste WHERE tipo = ?", (row[0],))
         if cur.fetchone()[0] > 0:
             conn.close()
             return False
@@ -1380,8 +1367,7 @@ class KpiRepositorio:
             d = dict(r)
             total = d["total"] or 0
             aprovados = d["aprovados"] or 0
-            d["taxa_aprovacao"] = round(
-                aprovados / total * 100, 1) if total else 0
+            d["taxa_aprovacao"] = round(aprovados / total * 100, 1) if total else 0
             rows.append(d)
         conn.close()
         return rows
@@ -1415,6 +1401,7 @@ class KpiRepositorio:
         """Casos com requisito de compliance: total e executados.
 
         Se não houver casos com requisito, percentual = 100 (não penaliza).
+        LTRIM(RTRIM()) no lugar de TRIM() — portável para versões antigas do T-SQL.
         """
         conn = Database.get_connection()
         cur = conn.cursor()
@@ -1425,7 +1412,7 @@ class KpiRepositorio:
             FROM casos_teste
             WHERE ciclo_id = ?
               AND requisito_compliance IS NOT NULL
-              AND TRIM(requisito_compliance) <> ''
+              AND LTRIM(RTRIM(requisito_compliance)) <> ''
         """, (ciclo_id,))
         row = cur.fetchone()
         conn.close()
@@ -1452,8 +1439,7 @@ class KpiRepositorio:
         taxa_aprov = k["perc_aprovacao"] if k["total"] else 0
         smoke = r["cobertura_smoke"] if r["total"] else 100
         comp = c["percentual"]
-        indice = round(taxa_exec * 0.25 + taxa_aprov *
-                       0.35 + smoke * 0.20 + comp * 0.20)
+        indice = round(taxa_exec * 0.25 + taxa_aprov * 0.35 + smoke * 0.20 + comp * 0.20)
         if indice >= 90:
             semaforo, status = "🟢", "Pronto para subir"
         elif indice >= 70:
