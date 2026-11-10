@@ -1,26 +1,22 @@
 """Janela principal com abas — login, seleção de conexão e escopo de clientes.
 
 - Login obrigatório antes de abrir o app (LoginDialog);
-- SELEÇÃO DE CONEXÃO pós-login (mobilidade): o usuário escolhe a conexão
-  entre as permitidas (testadas na hora com 🟢/🔴) ou o banco temporário
-  da sessão (modo memória explícito — dados não ficam salvos);
-- O seletor de clientes do rodapé mostra SOMENTE os clientes vinculados ao
-  usuário logado (Administrador vê todos);
-- 'Configurações → Usuários e Acessos...' visível apenas para Administrador;
-- 'Configurações → Trocar Conexão...' permite trocar a conexão em runtime;
-- Trocar de cliente no rodapé limpa o override APENAS se ele apontava para
-  uma conexão real (o modo memória é escolha explícita e persiste);
-- O usuário logado, o perfil e a conexão ativa aparecem na barra de status.
+- SELEÇÃO DE CONEXÃO pós-login (mobilidade);
+- Seletor de clientes do rodapé com escopo por usuário;
+- Abas: Ciclos, Casos, Execução, Melhorias, Relatórios, Chamados, Base de Conhecimento.
 """
 from PySide6.QtWidgets import (
     QMainWindow, QTabWidget, QComboBox, QLabel, QDialog, QMessageBox,
 )
 from PySide6.QtCore import Qt, QCoreApplication
+
 from .ciclos_widget import CiclosWidget
 from .casos_widget import CasosWidget
 from .execucao_widget import ExecucaoWidget
 from .relatorios_widget import RelatoriosWidget
 from .melhorias_widget import MelhoriasWidget
+from .chamados_widget import ChamadosWidget
+from .kb_widget import KbWidget
 from .modulos_dialog import ModulosDialog
 from .usuarios_dialog import UsuariosDialog
 from .clientes_dialog import ClientesDialog
@@ -42,13 +38,12 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Gerenciador Testes Essencial — Virada de Versão")
         self.resize(1280, 800)
 
-        # ---------- LOGIN (Fase 1) — antes de montar qualquer tela ----------
+        # ---------- LOGIN — antes de montar qualquer tela ----------
         dlg = LoginDialog(None)
         if dlg.exec() != QDialog.Accepted or not dlg.usuario:
-            raise SystemExit(0)  # fechou o login sem autenticar
+            raise SystemExit(0)
         self.usuario_logado = dlg.usuario
 
-        # Usuário sem perfil Administrador precisa ter clientes vinculados
         if not self._usuario_e_admin():
             try:
                 tem_clientes = bool(UsuarioClienteRepositorio.listar_clientes(
@@ -68,30 +63,32 @@ class MainWindow(QMainWindow):
 
         self._criar_menu()
 
+        # ---------- ABAS ----------
         self.tabs = QTabWidget()
         self.ciclos = CiclosWidget()
         self.casos = CasosWidget()
         self.execucao = ExecucaoWidget()
         self.melhorias = MelhoriasWidget()
         self.relatorios = RelatoriosWidget()
+        self.chamados = ChamadosWidget(usuario_logado=self.usuario_logado)
+        self.kb = KbWidget(usuario_logado=self.usuario_logado)
 
         self.tabs.addTab(self.ciclos, "Ciclos")
         self.tabs.addTab(self.casos, "Casos do Ciclo")
         self.tabs.addTab(self.execucao, "Execução")
         self.tabs.addTab(self.melhorias, "Melhorias")
         self.tabs.addTab(self.relatorios, "Relatórios & KPIs")
+        self.tabs.addTab(self.chamados, "Chamados")
+        self.tabs.addTab(self.kb, "Base de Conhecimento")
 
         self.setCentralWidget(self.tabs)
-
         self.setWindowState(Qt.WindowMaximized)
 
-        # Ciclo selecionado na aba 1 alimenta as abas Casos e Execução
         self.ciclos.cicloMudou.connect(self.casos.definir_ciclo)
         self.ciclos.cicloMudou.connect(self.execucao.definir_ciclo)
         self.tabs.currentChanged.connect(self._on_aba)
         self.statusBar().showMessage("Pronto")
 
-        # Usuário logado na barra de status (permanente)
         self.lbl_usuario = QLabel("")
         self.statusBar().addPermanentWidget(self.lbl_usuario)
 
@@ -109,7 +106,7 @@ class MainWindow(QMainWindow):
         self._preencher_seletor_clientes()
         self._mostrar_conexao_ativa()
 
-    # ---------- Sessão / escopo de acesso (Fase 1) ----------
+    # ---------- Sessão / escopo de acesso ----------
     def _usuario_e_admin(self):
         return (self.usuario_logado or {}).get("perfil_nome") == "Administrador"
 
@@ -119,13 +116,8 @@ class MainWindow(QMainWindow):
         perfil = u.get("perfil_nome") or "?"
         self.lbl_usuario.setText(f"Usuário: {nome} ({perfil})   ")
 
-    # ---------- Seleção de conexão (mobilidade) ----------
+    # ---------- Seleção de conexão ----------
     def _aplicar_escolha_conexao(self, dlg):
-        """Aplica a escolha do diálogo de seleção à sessão.
-
-        - usar_temporario -> modo memória EXPLÍCITO (SESSAO_MEMORIA);
-        - conexão real    -> override da sessão + cliente da conexão ativo.
-        """
         if dlg.usar_temporario:
             Database.definir_conexao_sessao(SESSAO_MEMORIA)
             return
@@ -137,16 +129,13 @@ class MainWindow(QMainWindow):
             Database.init_db()
 
     def _selecionar_conexao_inicial(self):
-        """Diálogo pós-login: escolhe a conexão da sessão (ou modo memória)."""
         dlg = SelecaoConexaoDialog(None, usuario=self.usuario_logado)
         if dlg.exec() != QDialog.Accepted:
-            # Cancelou: segue com o comportamento padrão (conexão do cliente)
             Database.limpar_conexao_sessao()
             return
         self._aplicar_escolha_conexao(dlg)
 
     def _trocar_conexao(self):
-        """Menu: troca a conexão da sessão em runtime (sem reiniciar o app)."""
         dlg = SelecaoConexaoDialog(self, usuario=self.usuario_logado)
         if dlg.exec() != QDialog.Accepted:
             return
@@ -157,7 +146,6 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Conexão da sessão alterada.", 3000)
 
     def _mostrar_conexao_ativa(self):
-        """Mostra na barra de status qual conexão está em uso."""
         estado = Database.conexao_sessao_ativa()
         if estado == SESSAO_MEMORIA:
             self.lbl_conexao.setText(
@@ -181,7 +169,6 @@ class MainWindow(QMainWindow):
             self.lbl_conexao.setText("Conexão: banco temporário da sessão   ")
 
     def _clientes_permitidos(self):
-        """Clientes que o usuário logado pode ver (Administrador: todos)."""
         if self._usuario_e_admin():
             try:
                 return ClienteRepositorio.listar(apenas_ativos=True)
@@ -194,7 +181,6 @@ class MainWindow(QMainWindow):
             return []
 
     def _garantir_cliente_permitido(self):
-        """Garante que o cliente ativo da sessão está no escopo do usuário logado."""
         permitidos = self._clientes_permitidos()
         if not permitidos:
             return
@@ -207,7 +193,6 @@ class MainWindow(QMainWindow):
     def _criar_menu(self):
         barra = self.menuBar()
 
-        # ---- MENU CADASTRO (catálogos) ----
         menu_cadastro = barra.addMenu("Cadastro")
         acao_modulos = menu_cadastro.addAction("Módulos...")
         acao_modulos.triggered.connect(self._abrir_modulos)
@@ -216,7 +201,6 @@ class MainWindow(QMainWindow):
         acao_usuarios = menu_cadastro.addAction("Usuários...")
         acao_usuarios.triggered.connect(self._abrir_usuarios)
 
-        # ---- MENU CONFIGURAÇÕES (parametrização do sistema) ----
         menu_config = barra.addMenu("Configurações")
         acao_tipos_ciclo = menu_config.addAction("Tipos de Ciclo...")
         acao_tipos_ciclo.triggered.connect(self._abrir_tipos_ciclo)
@@ -230,21 +214,20 @@ class MainWindow(QMainWindow):
             "(ex.: nuvem ↔ local, conforme a rede disponível).")
         acao_trocar_conexao.triggered.connect(self._trocar_conexao)
         if self._usuario_e_admin():
-            acao_usuarios_acessos = menu_config.addAction("Usuários e Acessos...")
-            acao_usuarios_acessos.triggered.connect(self._abrir_usuarios_acessos)
+            acao_usuarios_acessos = menu_config.addAction(
+                "Usuários e Acessos...")
+            acao_usuarios_acessos.triggered.connect(
+                self._abrir_usuarios_acessos)
 
-        # ---- MENU TEMA ----
         menu_tema = barra.addMenu("Tema")
         acao_claro = menu_tema.addAction("Claro")
         acao_escuro = menu_tema.addAction("Escuro")
         acao_sistema = menu_tema.addAction("Sistema (segue o Windows)")
-
         acao_claro.triggered.connect(lambda: self._trocar_tema("claro"))
         acao_escuro.triggered.connect(lambda: self._trocar_tema("escuro"))
         acao_sistema.triggered.connect(lambda: self._trocar_tema("sistema"))
 
     # ---------- Handlers dos menus ----------
-
     def _abrir_modulos(self):
         dlg = ModulosDialog(self)
         dlg.exec()
@@ -284,7 +267,6 @@ class MainWindow(QMainWindow):
         self._recarregar()
 
     def _recarregar(self):
-        """Recarrega o seletor de clientes e todos os dados."""
         self._preencher_seletor_clientes()
         self._mostrar_conexao_ativa()
         self.ciclos.carregar()
@@ -292,9 +274,10 @@ class MainWindow(QMainWindow):
         self.execucao.definir_ciclo(self.ciclos.ciclo_atual())
         self.melhorias.carregar()
         self.relatorios.carregar_ciclos()
+        self.chamados.carregar()
+        self.kb.carregar()
 
     def _preencher_seletor_clientes(self):
-        """Popula o seletor SOMENTE com os clientes permitidos ao usuário logado."""
         self.cb_cliente.blockSignals(True)
         self.cb_cliente.clear()
         for c in self._clientes_permitidos():
@@ -312,9 +295,6 @@ class MainWindow(QMainWindow):
         cliente_id = self.cb_cliente.itemData(index)
         if cliente_id is None:
             return
-        # Trocar de cliente: limpa o override APENAS se apontava para uma
-        # conexão real (o modo memória é escolha explícita do usuário e
-        # persiste — ele continua offline ao trocar de cliente).
         if Database.conexao_sessao_ativa() != SESSAO_MEMORIA:
             Database.limpar_conexao_sessao()
         Database.definir_cliente_ativo(cliente_id)
@@ -330,13 +310,17 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Tema alterado para: {tema}", 3000)
 
     def _on_aba(self, index):
-        if index == 0:  # Ciclos
+        if index == 0:
             self.ciclos.carregar()
-        elif index == 1:  # Casos do Ciclo
+        elif index == 1:
             self.casos.definir_ciclo(self.ciclos.ciclo_atual())
-        elif index == 2:  # Execução
+        elif index == 2:
             self.execucao.definir_ciclo(self.ciclos.ciclo_atual())
-        elif index == 3:  # Melhorias
+        elif index == 3:
             self.melhorias.carregar()
-        elif index == 4:  # Relatórios
+        elif index == 4:
             self.relatorios.carregar_ciclos()
+        elif index == 5:
+            self.chamados.carregar()
+        elif index == 6:
+            self.kb.carregar()

@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
     QPushButton, QLabel, QComboBox, QLineEdit, QTextEdit, QFormLayout,
     QMessageBox, QDialogButtonBox, QHeaderView, QTabWidget, QWidget,
     QSpinBox, QDoubleSpinBox, QProgressBar, QGridLayout, QDateEdit,
+    QAbstractSpinBox,
 )
 from PySide6.QtCore import Qt, QDate
 from database.models import CicloDetalheRepositorio, CicloRepositorio, UsuarioRepositorio
@@ -17,19 +18,29 @@ def fmt_moeda(v):
     return f"R$ {v:,.2f}".replace(",", "§").replace(".", ",").replace("§", ".")
 
 
-def _data_editada():
+def _data_editada(data_inicial=None):
+    """QDateEdit com data do dia, formato brasileiro e setas grandes.
+
+    - Nasce com a DATA DE HOJE (não mais 01/01/2000);
+    - Formato dd/MM/yyyy (padrão brasileiro);
+    - Setas de incremento visíveis e clicáveis (UpDownArrows);
+    - Limites amplos mas sensatos (2000–2100) para não navegar em décadas;
+    - Botão de calendário para escolha rápida.
+    """
     ed = QDateEdit()
     ed.setCalendarPopup(True)
-    ed.setDisplayFormat("yyyy-MM-dd")
-    ed.setSpecialValueText(" ")
-    ed.setMinimumDate(QDate(1900, 1, 1))
-    ed.setDate(QDate(2000, 1, 1))
+    ed.setDisplayFormat("dd/MM/yyyy")
+    ed.setButtonSymbols(QAbstractSpinBox.UpDownArrows)
+    ed.setMinimumDate(QDate(2000, 1, 1))
+    ed.setMaximumDate(QDate(2100, 12, 31))
+    ed.setDate(data_inicial if data_inicial and data_inicial.isValid()
+               else QDate.currentDate())
+    ed.setMinimumHeight(28)
     return ed
 
 
 def _valor_data(ed):
-    if ed.date().toString("yyyy-MM-dd") == "2000-01-01":
-        return ""
+    """Retorna a data no formato ISO (yyyy-MM-dd) para gravar no banco."""
     return ed.date().toString("yyyy-MM-dd")
 
 
@@ -45,20 +56,27 @@ class EtapaDialog(QDialog):
         self.etapa = etapa
         self.setWindowTitle("Nova Etapa" if not etapa else "Editar Etapa")
         self.setMinimumWidth(480)
+
         form = QFormLayout()
         self.ed_nome = QLineEdit()
         self.ed_descricao = QTextEdit()
         self.ed_descricao.setFixedHeight(60)
+
         self.cb_responsavel = QComboBox()
         _usuarios_combo(self.cb_responsavel)
+
         self.cb_status = QComboBox()
         self.cb_status.addItems(CicloDetalheRepositorio.STATUS_ETAPA_OPCOES)
+
         self.sp_percentual = QSpinBox()
         self.sp_percentual.setRange(0, 100)
         self.cb_status.currentTextChanged.connect(self._ajustar_percentual)
+
         self.sp_orcado = QDoubleSpinBox()
         self.sp_orcado.setRange(0, 999999999)
         self.sp_orcado.setDecimals(2)
+
+        # Datas: nascem com a data de HOJE (etapa nova) ou a data gravada (edição)
         self.ed_inicio_prev = _data_editada()
         self.ed_fim_prev = _data_editada()
 
@@ -75,9 +93,11 @@ class EtapaDialog(QDialog):
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         botoes.accepted.connect(self._validar)
         botoes.rejected.connect(self.reject)
+
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         layout.addWidget(botoes)
+
         if etapa:
             self._preencher(etapa)
 
@@ -130,18 +150,23 @@ class RotinaDialog(QDialog):
         self.rotina = rotina
         self.setWindowTitle("Nova Rotina" if not rotina else "Editar Rotina")
         self.setMinimumWidth(480)
+
         form = QFormLayout()
         self.cb_etapa = QComboBox()
         self.cb_etapa.addItem("", None)
         for e in (etapas or []):
             self.cb_etapa.addItem(e["nome"], e["id"])
+
         self.ed_nome = QLineEdit()
         self.ed_descricao = QTextEdit()
         self.ed_descricao.setFixedHeight(60)
+
         self.cb_status = QComboBox()
         self.cb_status.addItems(CicloDetalheRepositorio.STATUS_ROTINA_OPCOES)
+
         self.cb_responsavel = QComboBox()
         _usuarios_combo(self.cb_responsavel)
+
         self.sp_horas = QDoubleSpinBox()
         self.sp_horas.setRange(0, 99999)
         self.sp_horas.setDecimals(2)
@@ -157,9 +182,11 @@ class RotinaDialog(QDialog):
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         botoes.accepted.connect(self._validar)
         botoes.rejected.connect(self.reject)
+
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         layout.addWidget(botoes)
+
         if rotina:
             self._preencher(rotina)
 
@@ -200,24 +227,32 @@ class HoraDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Lançar Horas")
         self.setMinimumWidth(480)
+
         form = QFormLayout()
         self.cb_etapa = QComboBox()
         self.cb_etapa.addItem("", None)
         for e in (etapas or []):
             self.cb_etapa.addItem(e["nome"], e["id"])
+
         self.cb_rotina = QComboBox()
         self.cb_rotina.addItem("", None)
         for r in (rotinas or []):
             self.cb_rotina.addItem(f"{r['codigo']} — {r['nome']}", r["id"])
+
         self.cb_lancado = QComboBox()
         _usuarios_combo(self.cb_lancado)
+
+        # Data do lançamento: nasce com HOJE
         self.ed_data = _data_editada()
+
         self.sp_horas = QDoubleSpinBox()
         self.sp_horas.setRange(0, 99999)
         self.sp_horas.setDecimals(2)
+
         self.sp_custo_hora = QDoubleSpinBox()
         self.sp_custo_hora.setRange(0, 999999999)
         self.sp_custo_hora.setDecimals(2)
+
         self.ed_descricao = QLineEdit()
 
         form.addRow("Etapa:", self.cb_etapa)
@@ -232,6 +267,7 @@ class HoraDialog(QDialog):
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         botoes.accepted.connect(self._validar)
         botoes.rejected.connect(self.reject)
+
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         layout.addWidget(botoes)
@@ -264,17 +300,23 @@ class CustoDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Registrar Custo Adicional")
         self.setMinimumWidth(460)
+
         form = QFormLayout()
         self.ed_descricao = QLineEdit()
+
         self.cb_categoria = QComboBox()
         self.cb_categoria.addItems(CicloDetalheRepositorio.CATEGORIAS_CUSTO)
+
         self.sp_valor = QDoubleSpinBox()
         self.sp_valor.setRange(0, 999999999)
         self.sp_valor.setDecimals(2)
+
         self.cb_etapa = QComboBox()
         self.cb_etapa.addItem("", None)
         for e in (etapas or []):
             self.cb_etapa.addItem(e["nome"], e["id"])
+
+        # Data do custo: nasce com HOJE
         self.ed_data = _data_editada()
 
         form.addRow("Descrição:", self.ed_descricao)
@@ -287,6 +329,7 @@ class CustoDialog(QDialog):
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         botoes.accepted.connect(self._validar)
         botoes.rejected.connect(self.reject)
+
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         layout.addWidget(botoes)
@@ -330,11 +373,13 @@ class CicloDetalheDialog(QDialog):
 
         btn_fechar = QPushButton("Fechar")
         btn_fechar.clicked.connect(self.accept)
+
         layout = QVBoxLayout(self)
         layout.addWidget(self.tabs)
         layout.addWidget(btn_fechar, alignment=Qt.AlignRight)
 
         self.tabs.currentChanged.connect(self._on_aba)
+
         self.carregar_etapas()
         self.carregar_rotinas()
         self.carregar_horas()
@@ -357,6 +402,7 @@ class CicloDetalheDialog(QDialog):
         self.tabela_etapas.setEditTriggers(QTableWidget.NoEditTriggers)
         self.tabela_etapas.cellDoubleClicked.connect(self._editar_etapa_linha)
         layout.addWidget(self.tabela_etapas)
+
         botoes = QHBoxLayout()
         btn_novo = QPushButton("Nova Etapa")
         btn_editar = QPushButton("Editar")
@@ -449,6 +495,7 @@ class CicloDetalheDialog(QDialog):
         self.tabela_rotinas.setSelectionBehavior(QTableWidget.SelectRows)
         self.tabela_rotinas.setEditTriggers(QTableWidget.NoEditTriggers)
         layout.addWidget(self.tabela_rotinas)
+
         botoes = QHBoxLayout()
         btn_novo = QPushButton("Nova Rotina")
         btn_editar = QPushButton("Editar")
@@ -550,6 +597,7 @@ class CicloDetalheDialog(QDialog):
         self.tabela_horas.setSelectionBehavior(QTableWidget.SelectRows)
         self.tabela_horas.setEditTriggers(QTableWidget.NoEditTriggers)
         layout.addWidget(self.tabela_horas)
+
         botoes = QHBoxLayout()
         btn_lancar = QPushButton("Lançar Horas")
         btn_excluir = QPushButton("Excluir Lançamento")
@@ -620,6 +668,7 @@ class CicloDetalheDialog(QDialog):
         self.tabela_custos.setSelectionBehavior(QTableWidget.SelectRows)
         self.tabela_custos.setEditTriggers(QTableWidget.NoEditTriggers)
         layout.addWidget(self.tabela_custos)
+
         botoes = QHBoxLayout()
         btn_novo = QPushButton("Novo Custo")
         btn_excluir = QPushButton("Excluir")
@@ -677,10 +726,8 @@ class CicloDetalheDialog(QDialog):
         self.progresso.setFormat("%p%")
         layout.addWidget(QLabel("Andamento do Ciclo (média das etapas):"))
         layout.addWidget(self.progresso)
-
         self.lbl_exec = QLabel("")
         layout.addWidget(self.lbl_exec)
-
         self.grid = QGridLayout()
         layout.addLayout(self.grid)
         layout.addStretch()
@@ -694,7 +741,6 @@ class CicloDetalheDialog(QDialog):
             f"Execução: {ek['total']} casos | {ek['perc_execucao']}% executados | "
             f"{ek['perc_aprovacao']}% aprovados | {ek['defeitos']} defeitos | "
             f"progresso médio {ek['perc_medio']}%")
-
         linhas = [
             ("Etapas concluídas:",
              f"{k['etapas_concluidas']} / {k['etapas_total']}"),

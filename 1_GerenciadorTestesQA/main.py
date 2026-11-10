@@ -1,36 +1,43 @@
 """Ponto de entrada da aplicação — Gerenciador de Testes QA (Protheus).
 
-Bootstrap: inicializa o banco de configuração (clientes, conexões, perfis,
-usuários do sistema), aplica o tema salvo e abre a janela principal
-(o login acontece dentro da MainWindow, antes de montar as telas).
-
-IMPORTANTE: este arquivo é o ponto de entrada — usa APENAS imports
-absolutos (imports relativos só funcionam dentro de um pacote).
+Este arquivo é o ponto de entrada: usa APENAS imports ABSOLUTOS.
+Imports relativos ("from .x import y") só funcionam dentro de um pacote
+e quebram quando o arquivo é executado com "python main.py".
 """
 import sys
+from pathlib import Path
 
-from PySide6.QtWidgets import QApplication
+# Garante que a RAIZ do projeto esteja no sys.path antes dos imports.
+_RAIZ = Path(__file__).resolve().parent
+if str(_RAIZ) not in sys.path:
+    sys.path.insert(0, str(_RAIZ))
 
-from database.connection import Database
-from ui.main_window import MainWindow
+from PySide6.QtWidgets import QApplication  # noqa: E402
+
+from database.connection import Database  # noqa: E402
+from ui.main_window import MainWindow  # noqa: E402
 
 
 def main():
-    # Banco de configuração (clientes, conexões, perfis, usuarios_sistema)
+    # 1) Banco de CONFIGURAÇÃO (clientes, conexões, perfis, usuarios_sistema)
+    #    Precisa acontecer antes da MainWindow (que já faz login).
     Database.init_config_db()
 
+    # 2) QApplication
     app = QApplication(sys.argv)
     app.setApplicationName("Gerenciador Testes Essencial")
+    app.setOrganizationName("QA")
 
-    # Tema (se o ThemeManager tiver tema salvo, aplica; senão usa o padrão)
+    # 3) Tema (se o ThemeManager tiver tema salvo, aplica; senão sistema)
     try:
         from utils.themes import ThemeManager
-        ThemeManager.aplicar(app, ThemeManager.tema_salvo()
-                             if hasattr(ThemeManager, "tema_salvo")
-                             else "sistema")
+        tema = (ThemeManager.tema_salvo()
+                if hasattr(ThemeManager, "tema_salvo") else "sistema")
+        ThemeManager.aplicar(app, tema)
     except Exception:
-        pass  # tema padrão do sistema em caso de falha
+        pass  # falha de tema não impede o app de abrir
 
+    # 4) Janela principal (login acontece dentro dela)
     janela = MainWindow()
     janela.show()
     sys.exit(app.exec())

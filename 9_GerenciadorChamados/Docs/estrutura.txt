@@ -1,0 +1,21 @@
+gerenciador_chamados/
+├── main.py                  # bootstrap, tela de login
+├── config.ini               # string de conexão (fora do código!)
+├── db/
+│   ├── connection.py        # singleton pyodbc
+│   ├── schema.sql           # DDL + seeds
+│   └── repositories/        # chamado_repo.py, usuario_repo.py, kb_repo.py
+├── core/
+│   ├── auth.py              # login, hash, sessão
+│   ├── permissions.py       # regras de visibilidade e escrita
+│   └── models.py            # dataclasses
+├── ui/
+│   ├── login_view.py
+│   ├── chamado_list_view.py # Treeview com filtros
+│   ├── chamado_form_view.py
+│   ├── kb_view.py
+│   └── widgets/             # anexos, timeline, badges de status
+├── services/
+│   ├── anexo_service.py     # upload/download/sha256
+│   └── kb_service.py        # "gerar artigo a partir do chamado"
+└── attachments/             # fora do controle de versão

@@ -929,3 +929,328 @@ Traceback (most recent call last):
 pyodbc.ProgrammingError: ('42000', "[42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Introducing FOREIGN KEY constraint 'FK__ciclo_rot__etapa__0D44F85C' on table 'ciclo_rotinas' may cause cycles or multiple cascade paths. Specify ON DELETE NO ACTION or ON UPDATE NO ACTION, or modify other FOREIGN KEY constraints. (1785) (SQLExecDirectW); [42000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Could not create constraint or index. See previous errors. (1750)")
 
 ============================================================
+[2026-10-28 16:38:42] Falha ao criar/verificar o schema do banco ativo.
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 821, in init_db
+    Database.criar_schema_para(cfg)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 799, in criar_schema_para
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================
+[2026-10-28 16:38:42] Falha ao conectar no banco 'GerenciadorTestePoly' (sqlserver, host=4HVLF54\SQLEXPRESS): ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 671, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================
+[2026-10-28 16:38:44] Falha ao conectar no banco 'GerenciadorTestePoly' (sqlserver, host=4HVLF54\SQLEXPRESS): ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 671, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================
+[2026-10-28 16:38:44] Falha ao conectar no banco 'GerenciadorTestePoly' (sqlserver, host=4HVLF54\SQLEXPRESS): ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 671, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================
+[2026-10-28 16:38:45] Falha ao conectar no banco 'GerenciadorTestePoly' (sqlserver, host=4HVLF54\SQLEXPRESS): ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 671, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 671, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\casos_widget.py", line 552, in carregar
+    casos = CasoRepositorio.listar(self.ciclo_id)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\models.py", line 490, in listar
+    conn = Database.get_connection()
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 676, in get_connection
+    raise ErroConexaoAmigavel(
+    ...<4 lines>...
+        f"Detalhe técnico: {e}")
+database.connection.ErroConexaoAmigavel: Não foi possível conectar ao banco 'MEDTRONIC' (sqlserver).
+
+Verifique sua rede ou troque a conexão em:
+Configurações → Trocar Conexão...
+
+Detalhe técnico: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================
+[2026-10-28 16:38:46] Falha ao conectar no banco 'GerenciadorTestePoly' (sqlserver, host=4HVLF54\SQLEXPRESS): ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 671, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================
+[2026-10-28 16:38:47] Falha ao conectar no banco 'GerenciadorTestePoly' (sqlserver, host=4HVLF54\SQLEXPRESS): ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 671, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 671, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 380, in _todos_casos
+    return CasoRepositorio.listar(self.ciclo_id)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\models.py", line 490, in listar
+    conn = Database.get_connection()
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 676, in get_connection
+    raise ErroConexaoAmigavel(
+    ...<4 lines>...
+        f"Detalhe técnico: {e}")
+database.connection.ErroConexaoAmigavel: Não foi possível conectar ao banco 'MEDTRONIC' (sqlserver).
+
+Verifique sua rede ou troque a conexão em:
+Configurações → Trocar Conexão...
+
+Detalhe técnico: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================
+[2026-10-28 16:38:47] Falha ao conectar no banco 'GerenciadorTestePoly' (sqlserver, host=4HVLF54\SQLEXPRESS): ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 671, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 671, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\execucao_widget.py", line 417, in carregar
+    k = CicloRepositorio.kpis(self.ciclo_id)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\models.py", line 444, in kpis
+    conn = Database.get_connection()
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 676, in get_connection
+    raise ErroConexaoAmigavel(
+    ...<4 lines>...
+        f"Detalhe técnico: {e}")
+database.connection.ErroConexaoAmigavel: Não foi possível conectar ao banco 'MEDTRONIC' (sqlserver).
+
+Verifique sua rede ou troque a conexão em:
+Configurações → Trocar Conexão...
+
+Detalhe técnico: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================
+[2026-10-28 16:38:47] Falha ao conectar no banco 'GerenciadorTestePoly' (sqlserver, host=4HVLF54\SQLEXPRESS): ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 671, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================
+[2026-10-28 16:38:48] Falha ao conectar no banco 'GerenciadorTestePoly' (sqlserver, host=4HVLF54\SQLEXPRESS): ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 671, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================
+[2026-11-05 15:54:14] Falha ao criar/verificar o schema do banco ativo.
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 821, in init_db
+    Database.criar_schema_para(cfg)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 799, in criar_schema_para
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================
+[2026-11-05 15:54:14] Falha ao conectar no banco 'GerenciadorTestePoly' (sqlserver, host=4HVLF54\SQLEXPRESS): ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 671, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================
+[2026-11-05 15:54:15] Falha ao conectar no banco 'GerenciadorTestePoly' (sqlserver, host=4HVLF54\SQLEXPRESS): ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 671, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 671, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\ui\casos_widget.py", line 56, in _carregar_tipos_no_combo
+    tipos = TipoTesteRepositorio.listar_nomes()
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\models.py", line 1266, in listar_nomes
+    return [t["nome"] for t in TipoTesteRepositorio.listar()]
+                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\models.py", line 1257, in listar
+    conn = Database.get_connection()
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 676, in get_connection
+    raise ErroConexaoAmigavel(
+    ...<4 lines>...
+        f"Detalhe técnico: {e}")
+database.connection.ErroConexaoAmigavel: Não foi possível conectar ao banco 'MEDTRONIC' (sqlserver).
+
+Verifique sua rede ou troque a conexão em:
+Configurações → Trocar Conexão...
+
+Detalhe técnico: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================
+[2026-11-05 15:54:16] Falha ao conectar no banco 'GerenciadorTestePoly' (sqlserver, host=4HVLF54\SQLEXPRESS): ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 671, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================
+[2026-11-05 15:54:16] Falha ao conectar no banco 'GerenciadorTestePoly' (sqlserver, host=4HVLF54\SQLEXPRESS): ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+Traceback (most recent call last):
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 671, in get_connection
+    conn = Database._conectar(cfg)
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 703, in _conectar
+    return Database._conectar_sqlserver(cfg)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Dev\Dev-Python\1_GerenciadorTestesQA\database\connection.py", line 740, in _conectar_sqlserver
+    return pyodbc.connect(conn_str, timeout=timeout)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pyodbc.InterfaceError: ('28000', "[28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456) (SQLDriverConnect); [28000] [Microsoft][ODBC Driver 18 for SQL Server][SQL Server]Login failed for user 'poly'. (18456)")
+
+============================================================

@@ -21,11 +21,13 @@ class MelhoriaDialog(QDialog):
         self.setMinimumWidth(520)
 
         form = QFormLayout()
+
         self.cb_ciclo = QComboBox()
         self.cb_ciclo.addItem("", None)
         for c in CicloRepositorio.listar():
             self.cb_ciclo.addItem(
                 f"{c['nome']} ({c.get('tipo') or ''})", c["id"])
+
         self.ed_titulo = QLineEdit()
         self.ed_descricao = QTextEdit()
         self.ed_descricao.setFixedHeight(80)
@@ -45,6 +47,7 @@ class MelhoriaDialog(QDialog):
 
         self.cb_prioridade = QComboBox()
         self.cb_prioridade.addItems(PRIORIDADES_OPCOES)
+
         self.cb_status = QComboBox()
         self.cb_status.addItems(MelhoriaRepositorio.STATUS_OPCOES)
 
@@ -158,14 +161,17 @@ class GerarCasoNoCicloDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Gerar Caso no Ciclo")
         self.setMinimumWidth(460)
+
         form = QFormLayout()
         self.cb_ciclo = QComboBox()
         for c in CicloRepositorio.listar():
             self.cb_ciclo.addItem(
                 f"{c['nome']} ({c.get('tipo') or ''})", c["id"])
+
         self.ed_novo = QLineEdit()
         self.ed_novo.setPlaceholderText(
             "Ou informe o nome para criar um novo ciclo")
+
         form.addRow("Ciclo existente:", self.cb_ciclo)
         form.addRow("Criar novo ciclo:", self.ed_novo)
 
@@ -173,6 +179,7 @@ class GerarCasoNoCicloDialog(QDialog):
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         botoes.accepted.connect(self._validar)
         botoes.rejected.connect(self.reject)
+
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         layout.addWidget(botoes)
@@ -213,14 +220,13 @@ class MelhoriasWidget(QWidget):
         self.cb_filtro.addItems(MelhoriaRepositorio.STATUS_OPCOES)
         self.cb_filtro.currentIndexChanged.connect(self.carregar)
         topo.addWidget(self.cb_filtro)
+
         topo.addWidget(QLabel("Ciclo:"))
         self.cb_filtro_ciclo = QComboBox()
         self.cb_filtro_ciclo.addItem("Todos", None)
-        for c in CicloRepositorio.listar():
-            self.cb_filtro_ciclo.addItem(
-                f"{c['nome']} ({c.get('tipo') or ''})", c["id"])
         self.cb_filtro_ciclo.currentIndexChanged.connect(self.carregar)
         topo.addWidget(self.cb_filtro_ciclo)
+
         topo.addStretch()
         layout.addLayout(topo)
 
@@ -257,15 +263,38 @@ class MelhoriasWidget(QWidget):
         botoes.addStretch()
         layout.addLayout(botoes)
 
+    def _recarregar_filtro_ciclos(self):
+        """Recarrega o combo de filtro com TODOS os ciclos atuais.
+
+        O combo era populado apenas no construtor — ciclos criados depois
+        não apareciam no filtro. Agora ele é reconstruído a cada carregamento,
+        preservando a seleção atual do usuário.
+        """
+        atual = self.cb_filtro_ciclo.currentData()
+        self.cb_filtro_ciclo.blockSignals(True)
+        self.cb_filtro_ciclo.clear()
+        self.cb_filtro_ciclo.addItem("Todos", None)
+        try:
+            for c in CicloRepositorio.listar():
+                self.cb_filtro_ciclo.addItem(
+                    f"{c['nome']} ({c.get('tipo') or ''})", c["id"])
+        except Exception:
+            pass
+        idx = self.cb_filtro_ciclo.findData(atual) if atual is not None else 0
+        self.cb_filtro_ciclo.setCurrentIndex(idx if idx >= 0 else 0)
+        self.cb_filtro_ciclo.blockSignals(False)
+
     def carregar(self):
+        # Fonte única de verdade: o combo de filtro é reconstruído a cada
+        # carga, então ciclos novos aparecem imediatamente.
+        self._recarregar_filtro_ciclos()
+
         filtro = self.cb_filtro.currentText()
         if filtro == "Todos":
             filtro = None
         filtro_ciclo = self.cb_filtro_ciclo.currentData()
         melhorias = MelhoriaRepositorio.listar(filtro, filtro_ciclo)
-
         ciclos = {c["id"]: c["nome"] for c in CicloRepositorio.listar()}
-
         self.tabela.setRowCount(len(melhorias))
         for i, m in enumerate(melhorias):
             id_item = QTableWidgetItem(str(m["id"]))

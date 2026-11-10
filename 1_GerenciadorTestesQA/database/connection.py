@@ -1,7 +1,9 @@
 """
 Camada de conexão com banco de dados.
 Suporta múltiplos bancos: SQLite e SQL Server (MySQL: conexão ok, DDL pendente).
+
 Cada CLIENTE usa um banco próprio; o CICLO é a unidade completa de trabalho.
+
 Garantias desta camada:
 - Ao abrir o banco de um cliente, o SCHEMA é sempre verificado/criado UMA vez
   por sessão (cache), no DIALETO correto (SQLite ou T-SQL). Nenhuma query cai
@@ -29,9 +31,11 @@ COMPATIBILIDADE DE DIALETO (Adapter):
 - RowDict: dict que também aceita índice posicional (row[0]) — unifica
   sqlite3.Row e pyodbc.Row para todo o models.py;
 - _CursorCompat: cursor que captura o ID de INSERTs no SQL Server via
-  SELECT SCOPE_IDENTITY() (pyodbc não popula lastrowid) e devolve linhas
-  como RowDict em qualquer driver;
+  OUTPUT INSERTED.id (método ROBUSTO — funciona mesmo com NVARCHAR(MAX),
+  batches divididos, SET NOCOUNT, triggers) e devolve linhas como RowDict
+  em qualquer driver. Para SQLite usa cursor.lastrowid nativo.
 - _ConexaoCompat: empacota a conexão para entregar sempre o cursor compatível.
+
 O banco de CONFIGURAÇÃO (clientes, conexões, perfis, usuarios_sistema) é
 SEMPRE SQLite local — identidade de login não mora no banco do cliente.
 
@@ -42,6 +46,7 @@ parâmetro a conexão falha com 'cadeia de certificação não confiável'.
 O tráfego continua criptografado; apenas não validamos a cadeia.
 Login timeout curto (5s) para o teste de conectividade não travar a UI.
 """
+import re
 import sqlite3
 import shutil
 import traceback
@@ -50,19 +55,25 @@ from pathlib import Path
 
 # ============ CONFIGURAÇÃO ============
 BASE_DIR = Path(__file__).resolve().parent.parent
+
 # Pasta central de dados (criada automaticamente na primeira execução)
 DATA_DIR = BASE_DIR / "data"
+
 # Banco de CONFIGURAÇÃO (sempre SQLite local) — guarda clientes, conexões e config
 CONFIG_DB_PATH = DATA_DIR / "gerenciador_config.db"
+
 # Arquivo do banco local padrão (fallback antigo — não é mais auto-criado)
 BANCO_LOCAL_PADRAO = DATA_DIR / "gerenciador_testes_essencial.db"
 
 # Conexão em memória ÚNICA (usada quando não há cliente/conexão ativa)
 _mem_conn = None
+
 # Chaves de schema já garantidas nesta sessão (evita recriar DDL a cada conexão)
 _schema_garantido = set()
+
 # Conexão da SESSÃO: None = padrão do cliente | 0 = memória | id real = override
 _conexao_sessao_id = None
+
 # Sentinela: modo "banco temporário da sessão" (escolha explícita do usuário)
 SESSAO_MEMORIA = 0
 
@@ -80,7 +91,6 @@ class _ConexaoMemoria(sqlite3.Connection):
     Este wrapper ignora o close() para manter os dados vivos durante toda
     a sessão do app.
     """
-
     def close(self):
         pass
 
@@ -92,7 +102,6 @@ class RowDict(dict):
     usar dict(r), r['coluna'] e r[0] (queries escalares como COUNT) com
     QUALQUER driver, sem alterar uma linha de SQL.
     """
-
     def __init__(self, cols, values):
         super().__init__(zip(cols, values))
         self._vals = tuple(values)
@@ -103,34 +112,68 @@ class RowDict(dict):
         return super().__getitem__(key)
 
 
+def _inserir_output_identity(sql):
+    """Converte um INSERT para a forma OUTPUT INSERTED.id no SQL Server.
+
+    Estratégia: se o SQL já tem OUTPUT, não mexe. Senão, insere
+    "OUTPUT INSERTED.id" imediatamente antes do "VALUES".
+
+    Exemplo:
+      INSERT INTO chamados (a, b) VALUES (?, ?)
+      -> INSERT INTO chamados (a, b) OUTPUT INSERTED.id VALUES (?, ?)
+
+    Isso é a forma ROBUSTA e recomendada pela Microsoft: o ID vem do próprio
+    INSERT, sem depender de SCOPE_IDENTITY(), sessão, batch ou NOCOUNT.
+    """
+    if re.search(r"\bOUTPUT\b", sql, re.IGNORECASE):
+        return sql, False
+    m = re.search(r"\bVALUES\b", sql, re.IGNORECASE)
+    if not m:
+        return sql, False
+    pos = m.start()
+    novo = sql[:pos] + "OUTPUT INSERTED.id " + sql[pos:]
+    return novo, True
+
+
 class _CursorCompat:
     """Cursor que normaliza o comportamento entre sqlite3 e pyodbc.
 
     - fetchone/fetchall devolvem RowDict (dict + índice posicional);
-    - No SQL Server, após todo INSERT executa SELECT SCOPE_IDENTITY() e
-      expõe o resultado em .lastrowid (pyodbc não popula lastrowid);
+    - No SQL Server, todo INSERT é reescrito com OUTPUT INSERTED.id e o ID
+      é capturado na hora (ROBUSTO: funciona com NVARCHAR(MAX), NOCOUNT,
+      triggers, batches). Resultado exposto em .lastrowid.
     - execute() retorna self (permite cur.execute(...).fetchall()).
+    - _lastrowid é resetado no início de cada execute().
     """
-
     def __init__(self, cur, dialeto):
         self._cur = cur
         self.dialeto = dialeto
         self._lastrowid = None
 
     def execute(self, sql, params=None):
-        if params is None:
-            self._cur.execute(sql)
-        else:
-            self._cur.execute(sql, params)
+        # Reset defensivo: nunca herda o ID do execute anterior
+        self._lastrowid = None
+
+        sql_final = sql
+        reescrito = False
         if self.dialeto == "sqlserver" and \
                 (sql or "").lstrip().upper().startswith("INSERT"):
+            sql_final, reescrito = _inserir_output_identity(sql)
+
+        if params is None:
+            self._cur.execute(sql_final)
+        else:
+            self._cur.execute(sql_final, params)
+
+        if reescrito:
+            # O INSERT com OUTPUT devolve uma linha com o ID gerado
             try:
-                self._cur.execute(
-                    "SELECT CAST(SCOPE_IDENTITY() AS INT) AS novo_id")
                 row = self._cur.fetchone()
-                self._lastrowid = row[0] if row is not None else None
+                if row is not None:
+                    self._lastrowid = row[0]
             except Exception:
                 self._lastrowid = None
+
         return self
 
     def executemany(self, sql, seq):
@@ -171,7 +214,6 @@ class _CursorCompat:
 
 class _ConexaoCompat:
     """Conexão que entrega SEMPRE o cursor compatível (_CursorCompat)."""
-
     def __init__(self, conn, dialeto):
         self._conn = conn
         self.dialeto = dialeto
@@ -282,6 +324,7 @@ class Database:
         Database._migrar_arquivos_para_data()
         conn = Database.get_config_connection()
         cur = conn.cursor()
+
         cur.execute("""
             CREATE TABLE IF NOT EXISTS conexoes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -312,6 +355,7 @@ class Database:
                 criado_em TEXT DEFAULT (datetime('now','localtime'))
             )
         """)
+
         # ---------- SEGURANÇA (Fase 1): perfis, login e vínculo usuário-cliente ----------
         cur.execute("""
             CREATE TABLE IF NOT EXISTS perfis (
@@ -329,6 +373,7 @@ class Database:
                  ("Líder de Teste", "Coordenação técnica — cria ciclos, casos e rotinas"),
                  ("Testador", "Execução — executa casos e lança horas"),
                  ("Visualizador", "Somente leitura — relatórios e KPIs (auditoria)")])
+
         # Permissões por perfil (códigos usados na Fase 2 — já semeados)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS perfil_permissoes (
@@ -364,8 +409,8 @@ class Database:
                     cur.execute(
                         "INSERT OR IGNORE INTO perfil_permissoes (perfil_id, permissao) VALUES (?,?)",
                         (pid, p))
+
         # Usuários do SISTEMA (login) — identidade global, no banco de configuração.
-        # Diferente da tabela 'usuarios' por cliente (catálogo de analistas/responsáveis).
         cur.execute("""
             CREATE TABLE IF NOT EXISTS usuarios_sistema (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -378,6 +423,7 @@ class Database:
                 FOREIGN KEY (perfil_id) REFERENCES perfis(id)
             )
         """)
+
         # Vínculo N:N usuário do sistema ↔ clientes (escopo de acesso)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS usuario_clientes (
@@ -386,6 +432,7 @@ class Database:
                 PRIMARY KEY (usuario_id, cliente_id)
             )
         """)
+
         # Bootstrap: primeiro acesso — cria 'admin' com senha padrão se não houver usuários
         cur.execute("SELECT COUNT(*) FROM usuarios_sistema")
         if cur.fetchone()[0] == 0:
@@ -397,7 +444,9 @@ class Database:
                     INSERT INTO usuarios_sistema (login, nome, senha_hash, perfil_id)
                     VALUES (?,?,?,?)
                 """, ("admin", "Administrador", hash_senha("admin123"), p[0]))
+
         # ---------- FIM SEGURANÇA ----------
+
         cols = [r[1]
                 for r in cur.execute("PRAGMA table_info(conexoes)").fetchall()]
         if "cliente_id" not in cols:
@@ -405,10 +454,13 @@ class Database:
         if "padrao" not in cols:
             cur.execute(
                 "ALTER TABLE conexoes ADD COLUMN padrao INTEGER NOT NULL DEFAULT 0")
+
         cur.execute("SELECT COUNT(*) FROM clientes")
         tem_clientes = cur.fetchone()[0] > 0
+
         cur.execute("SELECT COUNT(*) FROM conexoes")
         tem_conexoes = cur.fetchone()[0] > 0
+
         if tem_clientes or tem_conexoes:
             if not tem_clientes:
                 cur.execute(
@@ -466,6 +518,7 @@ class Database:
                         cur.execute(
                             "INSERT OR REPLACE INTO config (chave, valor) VALUES ('cliente_ativo', ?)",
                             (str(cli["id"]),))
+
         # Banco novo: não cria nada — o usuário configura pelo menu.
         conn.commit()
         conn.close()
@@ -646,12 +699,14 @@ class Database:
     def get_connection():
         """
         Retorna a conexão com o banco de dados ativo (cursor compatível).
+
         Ordem de resolução:
         1. Conexão da SESSÃO:
            - SESSAO_MEMORIA (0): banco temporário em memória (escolha explícita);
            - id real: aquela conexão (override temporário);
            - None: conexão PADRÃO do cliente ativo;
         2. Sem conexão configurada: conexão em memória ÚNICA (fallback).
+
         FALHA DE CONEXÃO (rede bloqueada, servidor fora): levanta
         ErroConexaoAmigavel com orientação clara — NUNCA fallback silencioso
         para memória (evita o usuário digitar dados que seriam perdidos).
@@ -663,9 +718,11 @@ class Database:
                 cfg = Database._get_conexao_padrao_cliente(cliente["id"])
         if cfg is None:
             return Database._get_mem_conn()
+
         # Modo explícito: banco temporário da sessão (trabalho offline)
         if (cfg.get("tipo") or "").strip().lower() == "memoria":
             return Database._get_mem_conn()
+
         dialeto = Database._dialeto_de_cfg(cfg)
         try:
             conn = Database._conectar(cfg)
@@ -770,7 +827,6 @@ class Database:
                 import pyodbc
                 driver = cfg.get("driver") or "ODBC Driver 17 for SQL Server"
                 porta = cfg.get("porta") or 1433
-                # Mesmo ajuste do _conectar_sqlserver (TrustServerCertificate)
                 conn_str = (
                     f"DRIVER={{{driver}}};SERVER={cfg['host']},{porta};"
                     f"DATABASE={cfg['banco']};UID={cfg['usuario']};PWD={senha};"
@@ -957,19 +1013,16 @@ class Database:
                 nome TEXT UNIQUE NOT NULL
             )
         """)
-        # Tipos de Teste — configuráveis pelo usuário (Configurações → Tipos de Teste)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS tipos_teste (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 nome TEXT NOT NULL UNIQUE
             )
         """)
-        # Semear padrões (só se vazia) para não quebrar os combos existentes
         cur.execute("SELECT COUNT(*) FROM tipos_teste")
         if cur.fetchone()[0] == 0:
             for nome in ("Funcional", "Processo", "Regressivo", "Integração", "Segurança"):
                 cur.execute("INSERT OR IGNORE INTO tipos_teste (nome) VALUES (?)", (nome.upper(),))
-        # Garantir que tipos já usados em casos existentes fiquem disponíveis no combo
         cur.execute("SELECT DISTINCT tipo FROM casos_teste WHERE tipo IS NOT NULL AND tipo <> ''")
         for row in cur.fetchall():
             t = (row[0] or "").strip()
@@ -994,10 +1047,6 @@ class Database:
                 observacoes TEXT
             )
         """)
-        # Etapas de validação do caso de teste (teste de processo).
-        # Cada etapa pode estar vinculada a uma ROTINA do ciclo (herda o status)
-        # ou ser manual (checklist livre). Execução por etapa grava percentual
-        # e horas_reais (informados na ABA EXECUÇÃO, com totalização no caso).
         cur.execute("""
             CREATE TABLE IF NOT EXISTS caso_etapas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1023,6 +1072,115 @@ class Database:
                 cur.execute("ALTER TABLE caso_etapas ADD COLUMN horas_reais REAL DEFAULT 0")
         except Exception:
             pass
+
+        # ================= CHAMADOS / KB / TAREFAS (SQLite) =================
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sla_config (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                prioridade TEXT NOT NULL UNIQUE,
+                horas_resposta REAL NOT NULL DEFAULT 24,
+                horas_resolucao REAL NOT NULL DEFAULT 72,
+                ativo INTEGER NOT NULL DEFAULT 1
+            )
+        """)
+        cur.execute("SELECT COUNT(*) FROM sla_config")
+        if cur.fetchone()[0] == 0:
+            cur.executemany(
+                "INSERT INTO sla_config (prioridade, horas_resposta, horas_resolucao) VALUES (?,?,?)",
+                [("Critica", 2, 8), ("Alta", 8, 24),
+                 ("Media", 24, 72), ("Baixa", 72, 120)])
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS chamados (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                codigo TEXT NOT NULL UNIQUE,
+                titulo TEXT NOT NULL,
+                descricao TEXT NOT NULL,
+                tipo TEXT NOT NULL DEFAULT 'Suporte',
+                origem TEXT NOT NULL DEFAULT 'Manual',
+                prioridade TEXT NOT NULL DEFAULT 'Media',
+                severidade TEXT,
+                status TEXT NOT NULL DEFAULT 'Aberto',
+                responsavel TEXT,
+                solicitante TEXT,
+                modulo TEXT,
+                ambiente TEXT,
+                solucao TEXT,
+                ciclo_id INTEGER,
+                caso_teste_id INTEGER,
+                melhoria_id INTEGER,
+                artigo_id INTEGER,
+                aberto_em TEXT DEFAULT (datetime('now','localtime')),
+                prazo_resposta TEXT,
+                prazo_resolucao TEXT,
+                primeira_resposta_em TEXT,
+                resolvido_em TEXT,
+                encerrado_em TEXT,
+                criado_por TEXT,
+                atualizado_em TEXT
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS chamado_tarefas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chamado_id INTEGER NOT NULL,
+                titulo TEXT NOT NULL,
+                descricao TEXT,
+                responsavel TEXT,
+                status TEXT NOT NULL DEFAULT 'Pendente',
+                ordem INTEGER DEFAULT 0,
+                prazo TEXT,
+                concluida_em TEXT,
+                criado_em TEXT DEFAULT (datetime('now','localtime')),
+                FOREIGN KEY (chamado_id) REFERENCES chamados(id) ON DELETE CASCADE
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS chamado_historico (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chamado_id INTEGER NOT NULL,
+                tipo_evento TEXT NOT NULL,
+                de_status TEXT,
+                para_status TEXT,
+                autor TEXT,
+                comentario TEXT,
+                criado_em TEXT DEFAULT (datetime('now','localtime')),
+                FOREIGN KEY (chamado_id) REFERENCES chamados(id) ON DELETE CASCADE
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS artigos_kb (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                codigo TEXT NOT NULL UNIQUE,
+                titulo TEXT NOT NULL,
+                sintoma TEXT NOT NULL,
+                causa_raiz TEXT,
+                solucao TEXT NOT NULL,
+                tags TEXT,
+                modulo TEXT,
+                codigo_erro TEXT,
+                autor TEXT,
+                chamado_origem_id INTEGER,
+                visualizacoes INTEGER NOT NULL DEFAULT 0,
+                util_sim INTEGER NOT NULL DEFAULT 0,
+                util_nao INTEGER NOT NULL DEFAULT 0,
+                publicado INTEGER NOT NULL DEFAULT 1,
+                criado_em TEXT DEFAULT (datetime('now','localtime')),
+                atualizado_em TEXT
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS kb_vinculos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chamado_id INTEGER NOT NULL,
+                artigo_id INTEGER NOT NULL,
+                util INTEGER,
+                criado_em TEXT DEFAULT (datetime('now','localtime')),
+                UNIQUE (chamado_id, artigo_id),
+                FOREIGN KEY (chamado_id) REFERENCES chamados(id) ON DELETE CASCADE,
+                FOREIGN KEY (artigo_id) REFERENCES artigos_kb(id) ON DELETE CASCADE
+            )
+        """)
+
         Database._migrar_legado(cur)
 
     @staticmethod
@@ -1034,7 +1192,6 @@ class Database:
         timestamps como NVARCHAR(30) com DEFAULT CONVERT(..., SYSDATETIME(), 120)
         (mesmo formato de string ISO do SQLite — zero surpresa de tipo na UI).
         """
-
         def existe_tabela(nome):
             cur.execute("SELECT COUNT(*) FROM sys.tables WHERE name = ?", (nome,))
             return cur.fetchone()[0] > 0
@@ -1211,14 +1368,160 @@ class Database:
                     FOREIGN KEY (caso_id) REFERENCES casos_teste(id) ON DELETE CASCADE
                 )
             """)
-        # Índice de casos por ciclo
+
+        # ================= CHAMADOS / KB / TAREFAS =================
+        if not existe_tabela("sla_config"):
+            cur.execute("""
+                CREATE TABLE sla_config (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    prioridade NVARCHAR(50) NOT NULL UNIQUE,
+                    horas_resposta FLOAT NOT NULL DEFAULT 24,
+                    horas_resolucao FLOAT NOT NULL DEFAULT 72,
+                    ativo INT NOT NULL DEFAULT 1
+                )
+            """)
+        cur.execute("SELECT COUNT(*) FROM sla_config")
+        if cur.fetchone()[0] == 0:
+            cur.execute("""
+                INSERT INTO sla_config (prioridade, horas_resposta, horas_resolucao)
+                VALUES ('Critica', 2, 8), ('Alta', 8, 24),
+                       ('Media', 24, 72), ('Baixa', 72, 120)
+            """)
+
+        if not existe_tabela("chamados"):
+            cur.execute("""
+                CREATE TABLE chamados (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    codigo NVARCHAR(20) NOT NULL UNIQUE,
+                    titulo NVARCHAR(255) NOT NULL,
+                    descricao NVARCHAR(MAX) NOT NULL,
+                    tipo NVARCHAR(50) NOT NULL DEFAULT 'Suporte',
+                    origem NVARCHAR(50) NOT NULL DEFAULT 'Manual',
+                    prioridade NVARCHAR(50) NOT NULL DEFAULT 'Media',
+                    severidade NVARCHAR(50),
+                    status NVARCHAR(50) NOT NULL DEFAULT 'Aberto',
+                    responsavel NVARCHAR(255),
+                    solicitante NVARCHAR(255),
+                    modulo NVARCHAR(100),
+                    ambiente NVARCHAR(100),
+                    solucao NVARCHAR(MAX),
+                    ciclo_id INT NULL,
+                    caso_teste_id INT NULL,
+                    melhoria_id INT NULL,
+                    artigo_id INT NULL,
+                    aberto_em NVARCHAR(30) DEFAULT CONVERT(NVARCHAR(30), SYSDATETIME(), 120),
+                    prazo_resposta NVARCHAR(30),
+                    prazo_resolucao NVARCHAR(30),
+                    primeira_resposta_em NVARCHAR(30),
+                    resolvido_em NVARCHAR(30),
+                    encerrado_em NVARCHAR(30),
+                    criado_por NVARCHAR(255),
+                    atualizado_em NVARCHAR(30)
+                )
+            """)
+        if not existe_tabela("chamado_tarefas"):
+            cur.execute("""
+                CREATE TABLE chamado_tarefas (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    chamado_id INT NOT NULL,
+                    titulo NVARCHAR(255) NOT NULL,
+                    descricao NVARCHAR(MAX),
+                    responsavel NVARCHAR(255),
+                    status NVARCHAR(50) NOT NULL DEFAULT 'Pendente',
+                    ordem INT DEFAULT 0,
+                    prazo NVARCHAR(20),
+                    concluida_em NVARCHAR(30),
+                    criado_em NVARCHAR(30) DEFAULT CONVERT(NVARCHAR(30), SYSDATETIME(), 120),
+                    CONSTRAINT FK_chamado_tarefas_chamado FOREIGN KEY (chamado_id)
+                        REFERENCES chamados(id) ON DELETE CASCADE
+                )
+            """)
+        if not existe_tabela("chamado_historico"):
+            cur.execute("""
+                CREATE TABLE chamado_historico (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    chamado_id INT NOT NULL,
+                    tipo_evento NVARCHAR(50) NOT NULL,
+                    de_status NVARCHAR(50),
+                    para_status NVARCHAR(50),
+                    autor NVARCHAR(255),
+                    comentario NVARCHAR(MAX),
+                    criado_em NVARCHAR(30) DEFAULT CONVERT(NVARCHAR(30), SYSDATETIME(), 120),
+                    CONSTRAINT FK_chamado_hist_chamado FOREIGN KEY (chamado_id)
+                        REFERENCES chamados(id) ON DELETE CASCADE
+                )
+            """)
+        if not existe_tabela("artigos_kb"):
+            cur.execute("""
+                CREATE TABLE artigos_kb (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    codigo NVARCHAR(20) NOT NULL UNIQUE,
+                    titulo NVARCHAR(255) NOT NULL,
+                    sintoma NVARCHAR(MAX) NOT NULL,
+                    causa_raiz NVARCHAR(MAX),
+                    solucao NVARCHAR(MAX) NOT NULL,
+                    tags NVARCHAR(500),
+                    modulo NVARCHAR(100),
+                    codigo_erro NVARCHAR(50),
+                    autor NVARCHAR(255),
+                    chamado_origem_id INT NULL,
+                    visualizacoes INT NOT NULL DEFAULT 0,
+                    util_sim INT NOT NULL DEFAULT 0,
+                    util_nao INT NOT NULL DEFAULT 0,
+                    publicado INT NOT NULL DEFAULT 1,
+                    criado_em NVARCHAR(30) DEFAULT CONVERT(NVARCHAR(30), SYSDATETIME(), 120),
+                    atualizado_em NVARCHAR(30)
+                )
+            """)
+        if not existe_tabela("kb_vinculos"):
+            cur.execute("""
+                CREATE TABLE kb_vinculos (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    chamado_id INT NOT NULL,
+                    artigo_id INT NOT NULL,
+                    util INT NULL,
+                    criado_em NVARCHAR(30) DEFAULT CONVERT(NVARCHAR(30), SYSDATETIME(), 120),
+                    CONSTRAINT UQ_kb_vinculo UNIQUE (chamado_id, artigo_id),
+                    CONSTRAINT FK_kb_vinculo_chamado FOREIGN KEY (chamado_id)
+                        REFERENCES chamados(id) ON DELETE CASCADE,
+                    CONSTRAINT FK_kb_vinculo_artigo FOREIGN KEY (artigo_id)
+                        REFERENCES artigos_kb(id) ON DELETE CASCADE
+                )
+            """)
+
+        # ---------- Índices ----------
         cur.execute("""
             IF NOT EXISTS (SELECT * FROM sys.indexes
                            WHERE name = 'idx_casos_ciclo'
                              AND object_id = OBJECT_ID('dbo.casos_teste'))
                 CREATE INDEX idx_casos_ciclo ON casos_teste(ciclo_id)
         """)
-        # Semear tipos de ciclo (só se vazia) — verificação por COUNT (dialético-neutro)
+        cur.execute("""
+            IF NOT EXISTS (SELECT * FROM sys.indexes
+                           WHERE name = 'idx_chamados_status'
+                             AND object_id = OBJECT_ID('dbo.chamados'))
+                CREATE INDEX idx_chamados_status ON chamados(status)
+        """)
+        cur.execute("""
+            IF NOT EXISTS (SELECT * FROM sys.indexes
+                           WHERE name = 'idx_chamados_ciclo'
+                             AND object_id = OBJECT_ID('dbo.chamados'))
+                CREATE INDEX idx_chamados_ciclo ON chamados(ciclo_id)
+        """)
+        cur.execute("""
+            IF NOT EXISTS (SELECT * FROM sys.indexes
+                           WHERE name = 'idx_chamado_tarefas_chamado'
+                             AND object_id = OBJECT_ID('dbo.chamado_tarefas'))
+                CREATE INDEX idx_chamado_tarefas_chamado ON chamado_tarefas(chamado_id)
+        """)
+        cur.execute("""
+            IF NOT EXISTS (SELECT * FROM sys.indexes
+                           WHERE name = 'idx_chamado_hist_chamado'
+                             AND object_id = OBJECT_ID('dbo.chamado_historico'))
+                CREATE INDEX idx_chamado_hist_chamado ON chamado_historico(chamado_id)
+        """)
+
+        # Semear tipos de ciclo (só se vazia)
         cur.execute("SELECT COUNT(*) FROM tipos_ciclo")
         if cur.fetchone()[0] == 0:
             for nome in ("Virada de Versão", "Implementação Legal", "Reforma Tributária",
@@ -1229,7 +1532,6 @@ class Database:
         if cur.fetchone()[0] == 0:
             for nome in ("Funcional", "Processo", "Regressivo", "Integração", "Segurança"):
                 cur.execute("INSERT INTO tipos_teste (nome) VALUES (?)", (nome.upper(),))
-        # Garantir que tipos já usados em casos existentes fiquem disponíveis
         cur.execute("SELECT DISTINCT tipo FROM casos_teste WHERE tipo IS NOT NULL AND tipo <> ''")
         for row in cur.fetchall():
             t = (row[0] or "").strip().upper()
@@ -1246,7 +1548,6 @@ class Database:
         Executado SOMENTE no dialeto SQLite — bancos SQL Server nascem novos,
         sem histórico legado a migrar.
         """
-        # 1) ciclos antigos ganham colunas novas
         cols_c = [r[1]
                   for r in cur.execute("PRAGMA table_info(ciclos)").fetchall()]
         if "tipo" not in cols_c:
@@ -1257,7 +1558,7 @@ class Database:
         if "custo_orcado" not in cols_c:
             cur.execute(
                 "ALTER TABLE ciclos ADD COLUMN custo_orcado REAL DEFAULT 0")
-        # 2) casos_teste: se não tem ciclo_id, é o catálogo antigo -> reconstruir
+
         cols = [r[1] for r in cur.execute(
             "PRAGMA table_info(casos_teste)").fetchall()]
         if "ciclo_id" not in cols:
@@ -1333,8 +1634,7 @@ class Database:
             cur.execute("DROP TABLE casos_teste")
             cur.execute("ALTER TABLE casos_teste_novo RENAME TO casos_teste")
             Database._fix_seq(cur, "casos_teste")
-        # 2b) Garante que casos_teste tenha TODAS as colunas usadas pelo app
-        #     (bancos criados por versões antigas podem estar sem colunas).
+
         cols_caso = [r[1] for r in cur.execute(
             "PRAGMA table_info(casos_teste)").fetchall()]
         _colunas_casos = {
@@ -1362,13 +1662,13 @@ class Database:
                         f"ALTER TABLE casos_teste ADD COLUMN {nome_col} {def_col}")
                 except Exception:
                     pass
-        # 3) melhorias: projeto_id -> ciclo_id
+
         cols_m = [r[1] for r in cur.execute(
             "PRAGMA table_info(melhorias)").fetchall()]
         if "ciclo_id" not in cols_m and "projeto_id" in cols_m:
             cur.execute(
                 "ALTER TABLE melhorias RENAME COLUMN projeto_id TO ciclo_id")
-        # 4) tipos_projeto -> tipos_ciclo
+
         tem_tp = cur.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='tipos_projeto'"
         ).fetchone()
@@ -1388,7 +1688,7 @@ class Database:
                 "INSERT INTO tipos_ciclo (nome) VALUES (?)",
                 [("Virada de Versão",), ("Implementação Legal",), ("Reforma Tributária",),
                  ("Novo Módulo",), ("Adequação Compliance",), ("Outro",)])
-        # 5) projetos (e detalhes) -> ciclos (e detalhes)
+
         tem_proj = cur.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='projetos'"
         ).fetchone()
@@ -1471,7 +1771,7 @@ class Database:
                                   "valor") or 0,
                               c.get("data"), c.get("criado_em")))
                     Database._fix_seq(cur, "ciclo_custos")
-        # 6) remove tabelas legadas
+
         for t in ("ciclo_casos", "projetos", "projeto_etapas", "projeto_rotinas",
                   "projeto_horas", "projeto_custos"):
             cur.execute(f"DROP TABLE IF EXISTS {t}")
